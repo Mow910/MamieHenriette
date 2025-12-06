@@ -102,4 +102,6 @@ class YoutubeAlert(db.Model):
 	notify_channel = db.Column(db.Integer)
 	message = db.Column(db.String(2000))
 	last_video_id = db.Column(db.String(64))
+	last_video_title = db.Column(db.String(512))
+	last_video_date = db.Column(db.DateTime)
 

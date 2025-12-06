@@ -1,369 +1,475 @@
 {% extends "template.html" %}
 
 {% block content %}
-<h1>Configuration de Mamie</h1>
-<p>Configurez les tokens Discord, les notifications Humble Bundle et l'API Twitch.</p>
+<div class="config-page">
+	<h1>⚙️ Configuration</h1>
+	<p>Paramétrez Discord, Twitch, YouTube et les fonctionnalités du bot.</p>
 
-<h2>Discord</h2>
-
-{% with messages = get_flashed_messages(with_categories=true) %}
-	{% if messages %}
-		{% for category, message in messages %}
-		<div class="alert alert-{{ category }}" style="padding: 10px; margin: 10px 0; border-radius: 5px; {% if category == 'error' %}background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb;{% else %}background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb;{% endif %}">
-			{{ message }}
-		</div>
-		{% endfor %}
-	{% endif %}
-{% endwith %}
-
-<form action="{{ url_for('updateConfiguration') }}" method="POST">
-	<fieldset>
-		<legend>API Discord</legend>
-		<label for="discord_token">Token Discord (caché)</label>
-		<input name="discord_token" type="password" placeholder="Votre token Discord" />
-		<small>Nécessite un redémarrage après modification</small>
-	</fieldset>
-
-	<fieldset>
-		<legend>Messages de bienvenue</legend>
-		<label for="welcome_enable">
-			<input type="checkbox" name="welcome_enable" {% if configuration.getValue('welcome_enable') %}checked="checked"{% endif %}>
-			Activer le message de bienvenue pour les nouveaux membres
-		</label>
-		
-		<label for="welcome_channel_id">Canal de bienvenue</label>
-		<select name="welcome_channel_id">
-			{% for channel in channels %}
-			<option value="{{channel.id}}" {% if configuration.getIntValue('welcome_channel_id')==channel.id %}selected="selected"{% endif %}>
-				{{channel.name}}
-			</option>
-			{% endfor %}
-		</select>
-		
-		<label for="welcome_message">Message personnalisé de bienvenue</label>
-		<textarea name="welcome_message" rows="3" placeholder="Bienvenue {member.mention} sur le serveur !">{{ configuration.getValue('welcome_message') }}</textarea>
-		<small>
-			<strong>Syntaxes disponibles :</strong><br>
-			• <code>{member.mention}</code> - Mentionne l'utilisateur (@NomUtilisateur)<br>
-			• <code>{member.name}</code> - Nom d'utilisateur (sans mention)<br>
-			• <code>{member.display_name}</code> - Surnom sur le serveur<br>
-			• <code>{member.id}</code> - ID de l'utilisateur<br>
-			• <code>{server.name}</code> - Nom du serveur<br>
-			• <code>{server.member_count}</code> - Nombre total de membres<br>
-			• <code>&lt;#ID_DU_CHANNEL&gt;</code> - Mentionne un salon (ex: &lt;#123456789012345678&gt;)
-		</small>
-	</fieldset>
-
-	<fieldset>
-		<legend>Auto-Role</legend>
-		<label for="autorole_enable">
-			<input type="checkbox" name="autorole_enable" {% if configuration.getValue('autorole_enable') %}checked="checked"{% endif %}>
-			Attribuer automatiquement un rôle aux nouveaux membres
-		</label>
-		
-		<label for="autorole_role_id">Rôle à attribuer</label>
-		{% if roles|length > 1 %}
-		<div class="tabs tabs-autorole">
-			{% for guild_data in roles %}
-			<button type="button" class="tab-button-autorole" onclick="openTabAutorole(event, 'autorole-guild-{{guild_data.guild_id}}')" {% if loop.first %}id="defaultOpenAutorole"{% endif %}>
-				{{ guild_data.guild_name }}
-			</button>
-			{% endfor %}
-		</div>
-		{% endif %}
-		
-		{% for guild_data in roles %}
-		<div id="autorole-guild-{{guild_data.guild_id}}" class="tab-content-autorole" {% if not loop.first %}style="display: none;"{% endif %}>
-			<select name="autorole_role_id">
-				<option value="">-- Aucun rôle --</option>
-				{% for role in guild_data.roles %}
-				<option value="{{role.id}}" {% if configuration.getIntValue('autorole_role_id')==role.id %}selected="selected"{% endif %}>
-					{% if role.color.value != 0 %}⬤{% else %}○{% endif %} {{role.name}}
-				</option>
-				{% endfor %}
-			</select>
-		</div>
-		{% endfor %}
-		
-		<small>
-			<strong>Note :</strong> Le bot doit avoir la permission "Gérer les rôles" et son rôle doit être positionné plus haut que le rôle à attribuer dans la hiérarchie des rôles.
-		</small>
-		
-		<script>
-		function openTabAutorole(evt, tabName) {
-			var i, tabcontent, tabbuttons;
-			tabcontent = document.getElementsByClassName("tab-content-autorole");
-			for (i = 0; i < tabcontent.length; i++) {
-				tabcontent[i].style.display = "none";
-			}
-			tabbuttons = document.getElementsByClassName("tab-button-autorole");
-			for (i = 0; i < tabbuttons.length; i++) {
-				tabbuttons[i].className = tabbuttons[i].className.replace(" active", "");
-			}
-			document.getElementById(tabName).style.display = "block";
-			evt.currentTarget.className += " active";
-		}
-		document.getElementById("defaultOpenAutorole")?.click();
-		</script>
-		
-		<style>
-		.tabs-autorole {
-			overflow: hidden;
-			border-bottom: 2px solid #ccc;
-			margin-bottom: 10px;
-		}
-		.tab-button-autorole {
-			background-color: #f1f1f1;
-			border: none;
-			outline: none;
-			cursor: pointer;
-			padding: 10px 20px;
-			transition: 0.3s;
-			font-size: 14px;
-			margin-right: 2px;
-		}
-		.tab-button-autorole:hover {
-			background-color: #ddd;
-		}
-		.tab-button-autorole.active {
-			background-color: #ccc;
-			font-weight: bold;
-		}
-		.tab-content-autorole {
-			animation: fadeEffect 0.3s;
-		}
-		</style>
-	</fieldset>
-
-	<fieldset>
-		<legend>Messages de départ</legend>
-		<label for="leave_enable">
-			<input type="checkbox" name="leave_enable" {% if configuration.getValue('leave_enable') %}checked="checked"{% endif %}>
-			Activer le message de départ quand un membre quitte le serveur
-		</label>
-		
-		<label for="leave_channel_id">Canal de départ</label>
-		<select name="leave_channel_id">
-			{% for channel in channels %}
-			<option value="{{channel.id}}" {% if configuration.getIntValue('leave_channel_id')==channel.id %}selected="selected"{% endif %}>
-				{{channel.name}}
-			</option>
-			{% endfor %}
-		</select>
-		
-		<label for="leave_message">Message personnalisé de départ</label>
-		<textarea name="leave_message" rows="3" placeholder="{member.mention} a quitté le serveur.">{{ configuration.getValue('leave_message') }}</textarea>
-		<small>
-			<strong>Syntaxes disponibles :</strong><br>
-			• <code>{member.mention}</code> - Mentionne l'utilisateur (@NomUtilisateur)<br>
-			• <code>{member.name}</code> - Nom d'utilisateur (sans mention)<br>
-			• <code>{member.display_name}</code> - Surnom sur le serveur<br>
-			• <code>{member.id}</code> - ID de l'utilisateur<br>
-			• <code>{server.name}</code> - Nom du serveur<br>
-			• <code>{server.member_count}</code> - Nombre total de membres<br>
-			• <code>&lt;#ID_DU_CHANNEL&gt;</code> - Mentionne un salon (ex: &lt;#123456789012345678&gt;)
-		</small>
-	</fieldset>
-
-	<fieldset>
-		<legend>Modération</legend>
-		<label for="moderation_enable">
-			<input type="checkbox" name="moderation_enable" {% if configuration.getValue('moderation_enable') %}checked="checked"{% endif %}>
-			Activer les commandes d'avertissement (!warn, !unwarn, !inspect)
-		</label>
-		
-		<label for="moderation_ban_enable">
-			<input type="checkbox" name="moderation_ban_enable" {% if configuration.getValue('moderation_ban_enable') %}checked="checked"{% endif %}>
-			Activer les commandes de bannissement (!ban, !unban)
-		</label>
-		
-		<label for="moderation_kick_enable">
-			<input type="checkbox" name="moderation_kick_enable" {% if configuration.getValue('moderation_kick_enable') %}checked="checked"{% endif %}>
-			Activer la commande d'expulsion (!kick)
-		</label>
-		
-		<label for="moderation_log_channel_id">Canal de logs de modération</label>
-		<select name="moderation_log_channel_id">
-			{% for channel in channels %}
-			<option value="{{channel.id}}" {% if configuration.getIntValue('moderation_log_channel_id')==channel.id %}selected="selected"{% endif %}>
-				{{channel.name}}
-			</option>
-			{% endfor %}
-		</select>
-		<small>Toutes les actions de modération seront notifiées dans ce canal</small>
-		
-		<label>Rôles Staff autorisés</label>
-		{% set selected_roles = (configuration.getValue('moderation_staff_role_ids') or '').split(',') %}
-		
-		{% if roles|length > 1 %}
-		<div class="tabs">
-			{% for guild_data in roles %}
-			<button type="button" class="tab-button" onclick="openTab(event, 'guild-{{guild_data.guild_id}}')" {% if loop.first %}id="defaultOpen"{% endif %}>
-				{{ guild_data.guild_name }}
-			</button>
-			{% endfor %}
-		</div>
-		{% endif %}
-		
-		{% for guild_data in roles %}
-		<div id="guild-{{guild_data.guild_id}}" class="tab-content" {% if not loop.first %}style="display: none;"{% endif %}>
-			<div style="max-height: 300px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; border-radius: 5px;">
-				{% for role in guild_data.roles %}
-				<label style="display: block; margin: 5px 0;">
-					<input type="checkbox" name="moderation_staff_role_ids" value="{{role.id}}" {% if role.id|string in selected_roles %}checked="checked"{% endif %}>
-					{% if role.color.value != 0 %}
-					<span style="color:#{{ '%06x' % role.color.value }}">●</span>
-					{% else %}
-					<span>○</span>
-					{% endif %}
-					{{role.name}}
-				</label>
-				{% endfor %}
+	<!-- Section Discord -->
+	<div class="config-section open" data-section="discord">
+		<div class="config-section-header" onclick="toggleSection(this)">
+			<div class="config-section-icon">🎮</div>
+			<div class="config-section-title">
+				<h2>Discord</h2>
+				<p>Token API, messages de bienvenue, auto-rôle et modération</p>
 			</div>
+			<svg class="config-section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+				<path d="M6 9l6 6 6-6"/>
+			</svg>
 		</div>
-		{% endfor %}
-		
-		<small>Sélectionnez un ou plusieurs rôles qui peuvent utiliser les commandes de modération</small>
-		
-		<script>
-		function openTab(evt, tabName) {
-			var i, tabcontent, tabbuttons;
-			tabcontent = document.getElementsByClassName("tab-content");
-			for (i = 0; i < tabcontent.length; i++) {
-				tabcontent[i].style.display = "none";
-			}
-			tabbuttons = document.getElementsByClassName("tab-button");
-			for (i = 0; i < tabbuttons.length; i++) {
-				tabbuttons[i].className = tabbuttons[i].className.replace(" active", "");
-			}
-			document.getElementById(tabName).style.display = "block";
-			evt.currentTarget.className += " active";
-		}
-		document.getElementById("defaultOpen")?.click();
-		</script>
-		
-		<style>
-		.tabs {
-			overflow: hidden;
-			border-bottom: 2px solid #ccc;
-			margin-bottom: 10px;
-		}
-		.tab-button {
-			background-color: #f1f1f1;
-			border: none;
-			outline: none;
-			cursor: pointer;
-			padding: 10px 20px;
-			transition: 0.3s;
-			font-size: 14px;
-			margin-right: 2px;
-		}
-		.tab-button:hover {
-			background-color: #ddd;
-		}
-		.tab-button.active {
-			background-color: #ccc;
-			font-weight: bold;
-		}
-		.tab-content {
-			animation: fadeEffect 0.3s;
-		}
-		@keyframes fadeEffect {
-			from {opacity: 0;}
-			to {opacity: 1;}
-		}
-		</style>
-		
-		<label for="moderation_embed_delete_delay">Délai de suppression des embeds (en secondes)</label>
-		<input name="moderation_embed_delete_delay" type="number" value="{{ configuration.getValue('moderation_embed_delete_delay') or '0' }}" placeholder="0" min="0" />
-		<small>Mettre 0 pour ne pas supprimer automatiquement</small>
-	</fieldset>
+		<div class="config-section-content">
+			<form action="{{ url_for('updateConfiguration') }}" method="POST">
+				
+				<!-- Token Discord -->
+				<div class="config-card">
+					<div class="config-card-header">
+						<h3>🔑 Token Discord</h3>
+						<span class="badge">Sensible</span>
+					</div>
+					<label for="discord_token">Token du bot (caché)</label>
+					<div class="token-input-wrapper">
+						<input name="discord_token" id="discord_token" type="password" placeholder="Votre token Discord" autocomplete="off" />
+						<button type="button" class="token-toggle" onclick="toggleTokenVisibility('discord_token', this)" title="Afficher/Masquer">👁️</button>
+					</div>
+					<small>⚠️ Nécessite un redémarrage du bot après modification</small>
+				</div>
 
-	<input type="Submit" value="Enregistrer la configuration Discord">
-</form>
+				<!-- Messages de bienvenue -->
+				<div class="config-card">
+					<div class="config-card-header">
+						<h3>👋 Messages de bienvenue</h3>
+					</div>
+					
+					<div class="toggle-row">
+						<label for="welcome_enable">Activer le message de bienvenue pour les nouveaux membres</label>
+						<div class="toggle-switch">
+							<input type="checkbox" name="welcome_enable" id="welcome_enable" {% if configuration.getValue('welcome_enable') %}checked{% endif %}>
+							<span class="toggle-slider"></span>
+						</div>
+					</div>
+					
+					<label for="welcome_channel_id">Canal de bienvenue</label>
+					<select name="welcome_channel_id" id="welcome_channel_id">
+						{% for channel in channels %}
+						<option value="{{channel.id}}" {% if configuration.getIntValue('welcome_channel_id')==channel.id %}selected{% endif %}>
+							#{{channel.name}}
+						</option>
+						{% endfor %}
+					</select>
+					
+					<label for="welcome_message">Message personnalisé</label>
+					<textarea name="welcome_message" id="welcome_message" rows="3" placeholder="Bienvenue {member.mention} sur le serveur !">{{ configuration.getValue('welcome_message') }}</textarea>
+					
+					<details class="syntax-helper">
+						<summary>📝 Variables disponibles</summary>
+						<div class="syntax-list">
+							<div class="syntax-item">
+								<code>{member.mention}</code>
+								<span>Mentionne l'utilisateur (@NomUtilisateur)</span>
+							</div>
+							<div class="syntax-item">
+								<code>{member.name}</code>
+								<span>Nom d'utilisateur (sans mention)</span>
+							</div>
+							<div class="syntax-item">
+								<code>{member.display_name}</code>
+								<span>Surnom sur le serveur</span>
+							</div>
+							<div class="syntax-item">
+								<code>{member.id}</code>
+								<span>ID de l'utilisateur</span>
+							</div>
+							<div class="syntax-item">
+								<code>{server.name}</code>
+								<span>Nom du serveur</span>
+							</div>
+							<div class="syntax-item">
+								<code>{server.member_count}</code>
+								<span>Nombre total de membres</span>
+							</div>
+							<div class="syntax-item">
+								<code>&lt;#ID_DU_CHANNEL&gt;</code>
+								<span>Mentionne un salon</span>
+							</div>
+						</div>
+					</details>
+				</div>
 
-<h2>API Twitch</h2>
-<form action="{{ url_for('updateConfiguration') }}" method="POST">
-	<label for="twitch_client_id">Client ID</label>
-	<input name="twitch_client_id" type="text" value="{{ configuration.getValue('twitch_client_id') }}" />
-	<label for="twitch_client_secret">Client Secret</label>
-	<input name="twitch_client_secret" type="text" value="{{ configuration.getValue('twitch_client_secret') }}" />
-	<label for="twitch_channel">Chaîne à rejoindre</label>
-	<input name="twitch_channel" type="text" value="{{ configuration.getValue('twitch_channel') }}"
-		placeholder="#machinTruc" />
-	<input type="Submit" value="Enregistrer la configuration Twitch">
-	<p>
-		<a href="{{ url_for('twitchConfigurationHelp') }}">Aide</a>
-	</p>
-	{% if configuration.getValue('twitch_client_secret') and configuration.getValue('twitch_client_id') %}
-	<p>
-		<a href="{{ url_for('twitchRequestToken') }}">Obtenir token et refresh token</a>
-	</p>
-	<label for="twitch_access_token">Access Token</label>
-	<input name="twitch_access_token" type="text" value="{{ configuration.getValue('twitch_access_token') }}"
-		readonly="readonly" />
-	<label for="twitch_refresh_token">Refresh Token</label>
-	<input name="twitch_refresh_token" type="text" value="{{ configuration.getValue('twitch_refresh_token') }}"
-		readonly="readonly" />
-	<p>Nécessite un redémarrage après l'obtention des Tokens.</p>
-	{% endif %}
-</form>
+				<!-- Auto-Role -->
+				<div class="config-card">
+					<div class="config-card-header">
+						<h3>🎭 Auto-Rôle</h3>
+					</div>
+					
+					<div class="toggle-row">
+						<label for="autorole_enable">Attribuer automatiquement un rôle aux nouveaux membres</label>
+						<div class="toggle-switch">
+							<input type="checkbox" name="autorole_enable" id="autorole_enable" {% if configuration.getValue('autorole_enable') %}checked{% endif %}>
+							<span class="toggle-slider"></span>
+						</div>
+					</div>
+					
+					<label>Rôle à attribuer</label>
+					{% if roles|length > 1 %}
+					<div class="guild-tabs">
+						{% for guild_data in roles %}
+						<button type="button" class="guild-tab {% if loop.first %}active{% endif %}" onclick="switchGuildTab(this, 'autorole-guild-{{guild_data.guild_id}}')">
+							{{ guild_data.guild_name }}
+						</button>
+						{% endfor %}
+					</div>
+					{% endif %}
+					
+					{% for guild_data in roles %}
+					<div id="autorole-guild-{{guild_data.guild_id}}" class="guild-content {% if loop.first %}active{% endif %}">
+						<select name="autorole_role_id">
+							<option value="">-- Aucun rôle --</option>
+							{% for role in guild_data.roles %}
+							<option value="{{role.id}}" {% if configuration.getIntValue('autorole_role_id')==role.id %}selected{% endif %}>
+								{% if role.color.value != 0 %}⬤{% else %}○{% endif %} {{role.name}}
+							</option>
+							{% endfor %}
+						</select>
+					</div>
+					{% endfor %}
+					
+					<div class="warning-box">
+						<span class="warning-box-icon">⚠️</span>
+						<div class="warning-box-content">
+							<strong>Permissions requises</strong>
+							<p>Le bot doit avoir "Gérer les rôles" et son rôle doit être plus haut dans la hiérarchie que le rôle à attribuer.</p>
+						</div>
+					</div>
+				</div>
 
-<h2>Humble Bundle</h2>
-<form action="{{ url_for('updateConfiguration') }}" method="POST">
-	<p>Humble Bundle propose régulièrement des bundles de jeux vidéo à des prix réduits. Activez les notifications pour recevoir automatiquement les nouveaux packs disponibles sur votre serveur Discord.</p>
+				<!-- Messages de départ -->
+				<div class="config-card">
+					<div class="config-card-header">
+						<h3>🚪 Messages de départ</h3>
+					</div>
+					
+					<div class="toggle-row">
+						<label for="leave_enable">Activer le message quand un membre quitte le serveur</label>
+						<div class="toggle-switch">
+							<input type="checkbox" name="leave_enable" id="leave_enable" {% if configuration.getValue('leave_enable') %}checked{% endif %}>
+							<span class="toggle-slider"></span>
+						</div>
+					</div>
+					
+					<label for="leave_channel_id">Canal de départ</label>
+					<select name="leave_channel_id" id="leave_channel_id">
+						{% for channel in channels %}
+						<option value="{{channel.id}}" {% if configuration.getIntValue('leave_channel_id')==channel.id %}selected{% endif %}>
+							#{{channel.name}}
+						</option>
+						{% endfor %}
+					</select>
+					
+					<label for="leave_message">Message personnalisé</label>
+					<textarea name="leave_message" id="leave_message" rows="3" placeholder="{member.name} a quitté le serveur.">{{ configuration.getValue('leave_message') }}</textarea>
+					
+					<details class="syntax-helper">
+						<summary>📝 Variables disponibles</summary>
+						<div class="syntax-list">
+							<div class="syntax-item">
+								<code>{member.mention}</code>
+								<span>Mentionne l'utilisateur</span>
+							</div>
+							<div class="syntax-item">
+								<code>{member.name}</code>
+								<span>Nom d'utilisateur</span>
+							</div>
+							<div class="syntax-item">
+								<code>{member.display_name}</code>
+								<span>Surnom sur le serveur</span>
+							</div>
+							<div class="syntax-item">
+								<code>{server.name}</code>
+								<span>Nom du serveur</span>
+							</div>
+							<div class="syntax-item">
+								<code>{server.member_count}</code>
+								<span>Nombre de membres restants</span>
+							</div>
+						</div>
+					</details>
+				</div>
 
-	<label for="humble_bundle_enable">
-		<input type="checkbox" name="humble_bundle_enable" {% if configuration.getValue('humble_bundle_enable') %}checked="checked"{% endif %}>
-		Activer les notifications Humble Bundle
-	</label>
+				<!-- Modération -->
+				<div class="config-card">
+					<div class="config-card-header">
+						<h3>🛡️ Modération</h3>
+					</div>
+					
+					<div class="toggle-row">
+						<label for="moderation_enable">Activer les commandes d'avertissement (!warn, !unwarn, !inspect)</label>
+						<div class="toggle-switch">
+							<input type="checkbox" name="moderation_enable" id="moderation_enable" {% if configuration.getValue('moderation_enable') %}checked{% endif %}>
+							<span class="toggle-slider"></span>
+						</div>
+					</div>
+					
+					<div class="toggle-row">
+						<label for="moderation_ban_enable">Activer les commandes de bannissement (!ban, !unban)</label>
+						<div class="toggle-switch">
+							<input type="checkbox" name="moderation_ban_enable" id="moderation_ban_enable" {% if configuration.getValue('moderation_ban_enable') %}checked{% endif %}>
+							<span class="toggle-slider"></span>
+						</div>
+					</div>
+					
+					<div class="toggle-row">
+						<label for="moderation_kick_enable">Activer la commande d'expulsion (!kick)</label>
+						<div class="toggle-switch">
+							<input type="checkbox" name="moderation_kick_enable" id="moderation_kick_enable" {% if configuration.getValue('moderation_kick_enable') %}checked{% endif %}>
+							<span class="toggle-slider"></span>
+						</div>
+					</div>
+					
+					<label for="moderation_log_channel_id">Canal de logs de modération</label>
+					<select name="moderation_log_channel_id" id="moderation_log_channel_id">
+						{% for channel in channels %}
+						<option value="{{channel.id}}" {% if configuration.getIntValue('moderation_log_channel_id')==channel.id %}selected{% endif %}>
+							#{{channel.name}}
+						</option>
+						{% endfor %}
+					</select>
+					<small>Toutes les actions de modération seront notifiées dans ce canal</small>
+					
+					<label>Rôles Staff autorisés</label>
+					{% set selected_roles = (configuration.getValue('moderation_staff_role_ids') or '').split(',') %}
+					
+					{% if roles|length > 1 %}
+					<div class="guild-tabs">
+						{% for guild_data in roles %}
+						<button type="button" class="guild-tab {% if loop.first %}active{% endif %}" onclick="switchGuildTab(this, 'moderation-guild-{{guild_data.guild_id}}')">
+							{{ guild_data.guild_name }}
+						</button>
+						{% endfor %}
+					</div>
+					{% endif %}
+					
+					{% for guild_data in roles %}
+					<div id="moderation-guild-{{guild_data.guild_id}}" class="guild-content {% if loop.first %}active{% endif %}">
+						<div class="roles-container">
+							{% for role in guild_data.roles %}
+							<div class="role-item">
+								<input type="checkbox" name="moderation_staff_role_ids" id="role-{{role.id}}" value="{{role.id}}" {% if role.id|string in selected_roles %}checked{% endif %}>
+								<label for="role-{{role.id}}">
+									<span class="role-color" style="background-color: {% if role.color.value != 0 %}#{{ '%06x' % role.color.value }}{% else %}var(--text-muted){% endif %};"></span>
+									{{role.name}}
+								</label>
+							</div>
+							{% endfor %}
+						</div>
+					</div>
+					{% endfor %}
+					<small>Sélectionnez les rôles qui peuvent utiliser les commandes de modération</small>
+					
+					<label for="moderation_embed_delete_delay">Délai de suppression des embeds (secondes)</label>
+					<input name="moderation_embed_delete_delay" id="moderation_embed_delete_delay" type="number" value="{{ configuration.getValue('moderation_embed_delete_delay') or '0' }}" placeholder="0" min="0" />
+					<small>Mettre 0 pour ne jamais supprimer automatiquement</small>
+				</div>
 
-	<label for="humble_bundle_channel">Canal de notification</label>
-	<select name="humble_bundle_channel">
-		{% for channel in channels %}
-		<option value="{{channel.id}}" {% if configuration.getIntValue('humble_bundle_channel')==channel.id %}selected="selected"{% endif %}>
-			{{channel.name}}
-		</option>
-		{% endfor %}
-	</select>
+				<div class="config-actions">
+					<input type="submit" value="💾 Enregistrer Discord">
+				</div>
+			</form>
+		</div>
+	</div>
 
-	<input type="Submit" value="Enregistrer la configuration Humble Bundle">
-</form>
+	<!-- Section Twitch -->
+	<div class="config-section" data-section="twitch">
+		<div class="config-section-header" onclick="toggleSection(this)">
+			<div class="config-section-icon">📺</div>
+			<div class="config-section-title">
+				<h2>Twitch</h2>
+				<p>Configuration de l'API Twitch pour les alertes live</p>
+			</div>
+			<svg class="config-section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+				<path d="M6 9l6 6 6-6"/>
+			</svg>
+		</div>
+		<div class="config-section-content">
+			<form action="{{ url_for('updateConfiguration') }}" method="POST">
+				<label for="twitch_client_id">Client ID</label>
+				<input name="twitch_client_id" id="twitch_client_id" type="text" value="{{ configuration.getValue('twitch_client_id') }}" placeholder="Votre Client ID Twitch" />
+				
+				<label for="twitch_client_secret">Client Secret</label>
+				<div class="token-input-wrapper">
+					<input name="twitch_client_secret" id="twitch_client_secret" type="password" value="{{ configuration.getValue('twitch_client_secret') }}" placeholder="Votre Client Secret" />
+					<button type="button" class="token-toggle" onclick="toggleTokenVisibility('twitch_client_secret', this)" title="Afficher/Masquer">👁️</button>
+				</div>
+				
+				<label for="twitch_channel">Chaîne à rejoindre</label>
+				<input name="twitch_channel" id="twitch_channel" type="text" value="{{ configuration.getValue('twitch_channel') }}" placeholder="#votre_chaine" />
+				
+				<a href="{{ url_for('twitchConfigurationHelp') }}" class="help-link">
+					❓ Besoin d'aide pour configurer Twitch ?
+				</a>
+				
+				{% if configuration.getValue('twitch_client_secret') and configuration.getValue('twitch_client_id') %}
+				<div class="config-card" style="margin-top: var(--space-lg);">
+					<div class="config-card-header">
+						<h3>🔐 Tokens d'accès</h3>
+					</div>
+					
+					<a href="{{ url_for('twitchRequestToken') }}" class="btn" style="margin-bottom: var(--space-md); display: inline-flex;">
+						🔄 Obtenir/Rafraîchir les tokens
+					</a>
+					
+					<label for="twitch_access_token">Access Token</label>
+					<input name="twitch_access_token" id="twitch_access_token" type="text" value="{{ configuration.getValue('twitch_access_token') }}" readonly />
+					
+					<label for="twitch_refresh_token">Refresh Token</label>
+					<input name="twitch_refresh_token" id="twitch_refresh_token" type="text" value="{{ configuration.getValue('twitch_refresh_token') }}" readonly />
+					
+					<small>⚠️ Nécessite un redémarrage après l'obtention des tokens</small>
+				</div>
+				{% endif %}
 
-<h2>⚠️ Gestion des serveurs</h2>
-<form action="{{ url_for('leaveGuild') }}" method="POST" onsubmit="return confirmLeave();">
-	<fieldset>
-		<legend>Quitter un serveur Discord</legend>
-		<p style="color: #856404; background-color: #fff3cd; border: 1px solid #ffeeba; padding: 10px; border-radius: 5px;">
-			<strong>⚠️ Attention :</strong> Cette action est irréversible ! Le bot quittera définitivement le serveur sélectionné.
-			Pour rejoindre à nouveau, vous devrez ré-inviter le bot.
-		</p>
-		
-		{% if guilds and guilds|length > 0 %}
-		<label for="guild_id">Sélectionner un serveur à quitter</label>
-		<select name="guild_id" id="guild_id" required>
-			<option value="">-- Choisir un serveur --</option>
-			{% for guild in guilds %}
-			<option value="{{ guild.id }}">{{ guild.name }} ({{ guild.member_count }} membres)</option>
-			{% endfor %}
-		</select>
-		
-		<label for="confirm_leave" style="margin-top: 15px;">
-			<input type="checkbox" name="confirm_leave" id="confirm_leave" value="1" required>
-			Je confirme vouloir faire quitter le bot de ce serveur
-		</label>
-		
-		<input type="submit" value="🚪 Quitter le serveur" style="background-color: #dc3545; border-color: #dc3545;" />
-		{% else %}
-		<p>Aucun serveur Discord connecté ou le bot n'est pas encore démarré.</p>
-		{% endif %}
-	</fieldset>
-</form>
+				<div class="config-actions">
+					<input type="submit" value="💾 Enregistrer Twitch">
+				</div>
+			</form>
+		</div>
+	</div>
+
+	<!-- Section Humble Bundle -->
+	<div class="config-section" data-section="humble">
+		<div class="config-section-header" onclick="toggleSection(this)">
+			<div class="config-section-icon">🎁</div>
+			<div class="config-section-title">
+				<h2>Humble Bundle</h2>
+				<p>Notifications automatiques des nouveaux bundles de jeux</p>
+			</div>
+			<svg class="config-section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+				<path d="M6 9l6 6 6-6"/>
+			</svg>
+		</div>
+		<div class="config-section-content">
+			<form action="{{ url_for('updateConfiguration') }}" method="POST">
+				<p style="color: var(--text-secondary); margin-bottom: var(--space-lg);">
+					Humble Bundle propose régulièrement des bundles de jeux vidéo à prix réduits. Activez les notifications pour recevoir automatiquement les nouveaux packs sur votre serveur Discord.
+				</p>
+				
+				<div class="toggle-row">
+					<label for="humble_bundle_enable">Activer les notifications Humble Bundle</label>
+					<div class="toggle-switch">
+						<input type="checkbox" name="humble_bundle_enable" id="humble_bundle_enable" {% if configuration.getValue('humble_bundle_enable') %}checked{% endif %}>
+						<span class="toggle-slider"></span>
+					</div>
+				</div>
+				
+				<label for="humble_bundle_channel">Canal de notification</label>
+				<select name="humble_bundle_channel" id="humble_bundle_channel">
+					{% for channel in channels %}
+					<option value="{{channel.id}}" {% if configuration.getIntValue('humble_bundle_channel')==channel.id %}selected{% endif %}>
+						#{{channel.name}}
+					</option>
+					{% endfor %}
+				</select>
+
+				<div class="config-actions">
+					<input type="submit" value="💾 Enregistrer Humble Bundle">
+				</div>
+			</form>
+		</div>
+	</div>
+
+	<!-- Section Zone Danger -->
+	<div class="config-section danger" data-section="danger">
+		<div class="config-section-header" onclick="toggleSection(this)">
+			<div class="config-section-icon">⚠️</div>
+			<div class="config-section-title">
+				<h2>Zone Danger</h2>
+				<p>Actions irréversibles - Utilisez avec précaution</p>
+			</div>
+			<svg class="config-section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+				<path d="M6 9l6 6 6-6"/>
+			</svg>
+		</div>
+		<div class="config-section-content">
+			<form action="{{ url_for('leaveGuild') }}" method="POST" onsubmit="return confirmLeave();">
+				<div class="danger-box">
+					<span class="danger-box-icon">🚨</span>
+					<div class="danger-box-content">
+						<strong>Quitter un serveur Discord</strong>
+						<p>Cette action est irréversible ! Le bot quittera définitivement le serveur sélectionné. Pour rejoindre à nouveau, vous devrez ré-inviter le bot.</p>
+					</div>
+				</div>
+				
+				{% if guilds and guilds|length > 0 %}
+				<label for="guild_id">Sélectionner un serveur à quitter</label>
+				<select name="guild_id" id="guild_id" required>
+					<option value="">-- Choisir un serveur --</option>
+					{% for guild in guilds %}
+					<option value="{{ guild.id }}">{{ guild.name }} ({{ guild.member_count }} membres)</option>
+					{% endfor %}
+				</select>
+				
+				<div class="toggle-row" style="background: rgba(220, 38, 38, 0.1); margin-top: var(--space-md);">
+					<label for="confirm_leave" style="color: var(--danger);">Je confirme vouloir faire quitter le bot de ce serveur</label>
+					<div class="toggle-switch">
+						<input type="checkbox" name="confirm_leave" id="confirm_leave" value="1" required>
+						<span class="toggle-slider"></span>
+					</div>
+				</div>
+
+				<div class="config-actions">
+					<input type="submit" value="🚪 Quitter le serveur" class="btn-danger" style="flex: none;">
+				</div>
+				{% else %}
+				<p style="color: var(--text-muted); text-align: center; padding: var(--space-lg);">
+					Aucun serveur Discord connecté ou le bot n'est pas encore démarré.
+				</p>
+				{% endif %}
+			</form>
+		</div>
+	</div>
+</div>
 
 <script>
+// Toggle section open/close
+function toggleSection(header) {
+	const section = header.closest('.config-section');
+	section.classList.toggle('open');
+}
+
+// Toggle token visibility
+function toggleTokenVisibility(inputId, button) {
+	const input = document.getElementById(inputId);
+	if (input.type === 'password') {
+		input.type = 'text';
+		button.textContent = '🙈';
+	} else {
+		input.type = 'password';
+		button.textContent = '👁️';
+	}
+}
+
+// Switch guild tabs
+function switchGuildTab(button, contentId) {
+	// Get parent tabs container
+	const tabsContainer = button.closest('.guild-tabs');
+	const card = button.closest('.config-card');
+	
+	// Deactivate all tabs in this group
+	tabsContainer.querySelectorAll('.guild-tab').forEach(tab => tab.classList.remove('active'));
+	button.classList.add('active');
+	
+	// Hide all content in this card
+	card.querySelectorAll('.guild-content').forEach(content => content.classList.remove('active'));
+	document.getElementById(contentId).classList.add('active');
+}
+
+// Confirm leave guild
 function confirmLeave() {
-	var select = document.getElementById('guild_id');
-	var serverName = select.options[select.selectedIndex].text;
+	const select = document.getElementById('guild_id');
+	if (!select.value) {
+		alert('Veuillez sélectionner un serveur.');
+		return false;
+	}
+	const serverName = select.options[select.selectedIndex].text;
 	return confirm('Êtes-vous VRAIMENT sûr de vouloir quitter le serveur "' + serverName + '" ?\n\nCette action est IRRÉVERSIBLE !');
 }
 </script>

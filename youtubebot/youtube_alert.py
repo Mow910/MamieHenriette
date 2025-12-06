@@ -75,6 +75,8 @@ async def checkNewVideos(bot):
 						await _notifyAlert(bot, alert, video)
 					
 					alert.last_video_id = video.video_id
+					alert.last_video_title = video.title
+					alert.last_video_date = video.published
 			else:
 				logger.warning(f"Impossible de récupérer les vidéos pour {alert.channel_id}")
 		

@@ -17,6 +17,7 @@
 			<th>Chaîne</th>
 			<th>Canal Discord</th>
 			<th>Message</th>
+			<th>Dernière vidéo</th>
 			<th>#</th>
 		</tr>
 	</thead>
@@ -30,6 +31,17 @@
 			</td>
 			<td>{{alert.notify_channel_name}}</td>
 			<td>{{alert.message[:50]}}{% if alert.message|length > 50 %}...{% endif %}</td>
+			<td class="last-video">
+				{% if alert.last_video_title %}
+				<a href="https://www.youtube.com/watch?v={{alert.last_video_id}}" target="_blank" title="{{alert.last_video_title}}">
+					{{alert.last_video_title[:40]}}{% if alert.last_video_title|length > 40 %}...{% endif %}
+				</a>
+				<br>
+				<small>📅 {{alert.last_video_date.strftime('%d/%m/%Y à %H:%M') if alert.last_video_date else '-'}}</small>
+				{% else %}
+				<span class="no-video">Aucune vidéo détectée</span>
+				{% endif %}
+			</td>
 			<td>
 				<a href="{{ url_for('toggleYoutubeAlert', id = alert.id) }}" class="icon">{{ '✅' if alert.enable else '❌' }}</a>
 				<a href="{{ url_for('openEditYoutubeAlert', id = alert.id) }}" class="icon">✐</a>

@@ -548,6 +548,38 @@ table.youtube-alert tr td:last-child {
 	white-space: nowrap;
 }
 
+/* YouTube Alert - Last Video Column */
+table.youtube-alert td.last-video {
+	min-width: 180px;
+	max-width: 280px;
+}
+
+table.youtube-alert td.last-video a {
+	display: block;
+	font-weight: 500;
+	color: var(--text-primary);
+	margin-bottom: var(--space-xs);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+table.youtube-alert td.last-video a:hover {
+	color: var(--accent);
+}
+
+table.youtube-alert td.last-video small {
+	display: block;
+	color: var(--text-muted);
+	font-size: 0.8rem;
+}
+
+table.youtube-alert td.last-video .no-video {
+	color: var(--text-muted);
+	font-style: italic;
+	font-size: var(--text-sm);
+}
+
 /* === Code === */
 code, pre {
 	font-family: var(--font-mono);
@@ -1362,6 +1394,511 @@ dialog::backdrop {
 	color: var(--danger);
 }
 
+/* === Configuration Page === */
+.config-page {
+	max-width: 900px;
+}
+
+.config-page h1 {
+	font-size: var(--text-2xl);
+	margin-bottom: var(--space-sm);
+}
+
+.config-page > p {
+	color: var(--text-muted);
+	margin-bottom: var(--space-xl);
+}
+
+/* Config Section */
+.config-section {
+	background: var(--bg-secondary);
+	border: 1px solid var(--border);
+	border-radius: var(--radius-md);
+	margin-bottom: var(--space-md);
+	overflow: hidden;
+}
+
+.config-section.danger {
+	border-color: rgba(220, 38, 38, 0.3);
+}
+
+.config-section-header {
+	display: flex;
+	align-items: center;
+	gap: var(--space-md);
+	padding: var(--space-lg);
+	cursor: pointer;
+	user-select: none;
+	transition: background 0.15s ease;
+}
+
+.config-section-header:hover {
+	background: var(--bg-tertiary);
+}
+
+.config-section.danger .config-section-header:hover {
+	background: rgba(220, 38, 38, 0.05);
+}
+
+.config-section-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 44px;
+	height: 44px;
+	background: var(--accent-soft);
+	border-radius: var(--radius-md);
+	font-size: 1.25rem;
+	flex-shrink: 0;
+}
+
+.config-section.danger .config-section-icon {
+	background: rgba(220, 38, 38, 0.1);
+}
+
+.config-section-title {
+	flex: 1;
+}
+
+.config-section-title h2 {
+	font-size: var(--text-lg);
+	margin: 0;
+	color: var(--text-primary);
+}
+
+.config-section.danger .config-section-title h2 {
+	color: var(--danger);
+}
+
+.config-section-title p {
+	font-size: var(--text-sm);
+	color: var(--text-muted);
+	margin: var(--space-xs) 0 0 0;
+}
+
+.config-section-chevron {
+	width: 20px;
+	height: 20px;
+	color: var(--text-muted);
+	transition: transform 0.2s ease;
+	flex-shrink: 0;
+}
+
+.config-section.open .config-section-chevron {
+	transform: rotate(180deg);
+}
+
+.config-section-content {
+	display: none;
+	padding: 0 var(--space-lg) var(--space-lg);
+	border-top: 1px solid var(--border);
+	animation: slideDown 0.2s ease;
+}
+
+.config-section.open .config-section-content {
+	display: block;
+}
+
+@keyframes slideDown {
+	from { opacity: 0; transform: translateY(-8px); }
+	to { opacity: 1; transform: translateY(0); }
+}
+
+/* Config Cards */
+.config-card {
+	background: var(--bg-tertiary);
+	border-radius: var(--radius-md);
+	padding: var(--space-lg);
+	margin-top: var(--space-lg);
+}
+
+.config-card:first-child {
+	margin-top: 0;
+}
+
+.config-card-header {
+	display: flex;
+	align-items: center;
+	gap: var(--space-sm);
+	margin-bottom: var(--space-md);
+}
+
+.config-card-header h3 {
+	font-size: var(--text-base);
+	font-weight: 600;
+	margin: 0;
+	color: var(--text-primary);
+}
+
+.config-card-header .badge {
+	font-size: 0.7rem;
+	padding: 2px 8px;
+}
+
+/* Config Form Overrides */
+.config-section form {
+	background: none;
+	border: none;
+	padding: 0;
+	max-width: none;
+}
+
+.config-section input[type="text"],
+.config-section input[type="password"],
+.config-section input[type="number"],
+.config-section select,
+.config-section textarea {
+	background: var(--bg-secondary);
+	margin-bottom: var(--space-sm);
+}
+
+.config-section label {
+	margin-bottom: var(--space-xs);
+	margin-top: var(--space-md);
+}
+
+.config-section label:first-child {
+	margin-top: 0;
+}
+
+.config-section small {
+	display: block;
+	margin-top: var(--space-xs);
+	margin-bottom: var(--space-md);
+	color: var(--text-muted);
+	font-size: var(--text-sm);
+}
+
+/* Toggle Switch */
+.toggle-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--space-md);
+	padding: var(--space-md);
+	background: var(--bg-secondary);
+	border-radius: var(--radius-sm);
+	margin-bottom: var(--space-sm);
+	transition: background 0.15s ease;
+}
+
+.toggle-row:hover {
+	background: var(--accent-soft);
+}
+
+.toggle-row label {
+	margin: 0;
+	flex: 1;
+	font-weight: 400;
+	cursor: pointer;
+}
+
+.toggle-switch {
+	position: relative;
+	width: 48px;
+	height: 26px;
+	flex-shrink: 0;
+}
+
+.toggle-switch input {
+	opacity: 0;
+	width: 0;
+	height: 0;
+	position: absolute;
+}
+
+.toggle-slider {
+	position: absolute;
+	cursor: pointer;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background-color: var(--border);
+	border-radius: var(--radius-full);
+	transition: 0.3s;
+}
+
+.toggle-slider:before {
+	position: absolute;
+	content: "";
+	height: 20px;
+	width: 20px;
+	left: 3px;
+	bottom: 3px;
+	background-color: white;
+	border-radius: 50%;
+	transition: 0.3s;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-switch input:checked + .toggle-slider {
+	background-color: var(--success);
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+	transform: translateX(22px);
+}
+
+.toggle-switch input:focus + .toggle-slider {
+	box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* Syntax Helper */
+.syntax-helper {
+	background: var(--bg-secondary);
+	border: 1px solid var(--border);
+	border-radius: var(--radius-sm);
+	padding: var(--space-md);
+	margin-top: var(--space-sm);
+}
+
+.syntax-helper summary {
+	font-size: var(--text-sm);
+	font-weight: 500;
+	color: var(--text-secondary);
+	cursor: pointer;
+	user-select: none;
+}
+
+.syntax-helper summary:hover {
+	color: var(--accent);
+}
+
+.syntax-list {
+	margin-top: var(--space-md);
+	display: grid;
+	gap: var(--space-sm);
+}
+
+.syntax-item {
+	display: flex;
+	align-items: center;
+	gap: var(--space-md);
+	font-size: var(--text-sm);
+}
+
+.syntax-item code {
+	flex-shrink: 0;
+	font-size: 0.8rem;
+}
+
+.syntax-item span {
+	color: var(--text-muted);
+}
+
+/* Roles Selector */
+.roles-container {
+	background: var(--bg-secondary);
+	border: 1px solid var(--border);
+	border-radius: var(--radius-sm);
+	max-height: 280px;
+	overflow-y: auto;
+	margin-top: var(--space-sm);
+}
+
+.role-item {
+	display: flex;
+	align-items: center;
+	gap: var(--space-sm);
+	padding: var(--space-sm) var(--space-md);
+	transition: background 0.1s ease;
+	cursor: pointer;
+}
+
+.role-item:hover {
+	background: var(--accent-soft);
+}
+
+.role-item input[type="checkbox"] {
+	margin: 0;
+}
+
+.role-item label {
+	margin: 0;
+	flex: 1;
+	display: flex;
+	align-items: center;
+	gap: var(--space-sm);
+	cursor: pointer;
+	font-weight: 400;
+}
+
+.role-color {
+	width: 12px;
+	height: 12px;
+	border-radius: 50%;
+	flex-shrink: 0;
+}
+
+/* Guild Tabs */
+.guild-tabs {
+	display: flex;
+	gap: var(--space-xs);
+	margin-bottom: var(--space-md);
+	border-bottom: 1px solid var(--border);
+	padding-bottom: var(--space-xs);
+}
+
+.guild-tab {
+	padding: var(--space-sm) var(--space-md);
+	font-size: var(--text-sm);
+	font-weight: 500;
+	color: var(--text-muted);
+	background: transparent;
+	border: none;
+	border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+	cursor: pointer;
+	transition: all 0.15s ease;
+}
+
+.guild-tab:hover {
+	color: var(--text-primary);
+	background: var(--bg-tertiary);
+}
+
+.guild-tab.active {
+	color: var(--accent);
+	background: var(--accent-soft);
+}
+
+.guild-content {
+	display: none;
+}
+
+.guild-content.active {
+	display: block;
+}
+
+/* Warning Box */
+.warning-box {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--space-md);
+	padding: var(--space-md);
+	background: rgba(245, 158, 11, 0.1);
+	border: 1px solid rgba(245, 158, 11, 0.3);
+	border-radius: var(--radius-sm);
+	margin-bottom: var(--space-lg);
+}
+
+.warning-box-icon {
+	font-size: 1.25rem;
+	flex-shrink: 0;
+}
+
+.warning-box-content {
+	flex: 1;
+}
+
+.warning-box-content strong {
+	display: block;
+	color: #f59e0b;
+	margin-bottom: var(--space-xs);
+}
+
+.warning-box-content p {
+	color: var(--text-secondary);
+	margin: 0;
+	font-size: var(--text-sm);
+}
+
+/* Danger Box */
+.danger-box {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--space-md);
+	padding: var(--space-md);
+	background: rgba(220, 38, 38, 0.1);
+	border: 1px solid rgba(220, 38, 38, 0.3);
+	border-radius: var(--radius-sm);
+	margin-bottom: var(--space-lg);
+}
+
+.danger-box-icon {
+	font-size: 1.25rem;
+	flex-shrink: 0;
+}
+
+.danger-box-content {
+	flex: 1;
+}
+
+.danger-box-content strong {
+	display: block;
+	color: var(--danger);
+	margin-bottom: var(--space-xs);
+}
+
+.danger-box-content p {
+	color: var(--text-secondary);
+	margin: 0;
+	font-size: var(--text-sm);
+}
+
+/* Config Actions */
+.config-actions {
+	display: flex;
+	gap: var(--space-sm);
+	margin-top: var(--space-lg);
+	padding-top: var(--space-lg);
+	border-top: 1px solid var(--border);
+}
+
+.config-actions button,
+.config-actions input[type="submit"] {
+	flex: 1;
+}
+
+@media (max-width: 480px) {
+	.config-actions {
+		flex-direction: column;
+	}
+}
+
+/* Token Input */
+.token-input-wrapper {
+	position: relative;
+}
+
+.token-input-wrapper input {
+	padding-right: 50px;
+}
+
+.token-toggle {
+	position: absolute;
+	right: 8px;
+	top: 50%;
+	transform: translateY(-50%);
+	background: none;
+	border: none;
+	color: var(--text-muted);
+	cursor: pointer;
+	padding: var(--space-xs);
+	font-size: 1rem;
+	transition: color 0.15s ease;
+}
+
+.token-toggle:hover {
+	color: var(--text-primary);
+	background: none;
+	transform: translateY(-50%);
+}
+
+/* Help Link */
+.help-link {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-xs);
+	font-size: var(--text-sm);
+	color: var(--accent);
+	margin-top: var(--space-sm);
+}
+
+.help-link:hover {
+	text-decoration: underline;
+}
+
 /* === Responsive === */
 @media (max-width: 640px) {
 	:root {
@@ -1398,5 +1935,31 @@ dialog::backdrop {
 	.invites-actions {
 		flex-direction: column;
 		align-items: flex-start;
+	}
+	
+	.config-section-header {
+		padding: var(--space-md);
+	}
+	
+	.config-section-icon {
+		width: 36px;
+		height: 36px;
+		font-size: 1rem;
+	}
+	
+	.config-section-title h2 {
+		font-size: var(--text-base);
+	}
+	
+	.toggle-row {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: var(--space-sm);
+	}
+	
+	.syntax-item {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: var(--space-xs);
 	}
 }

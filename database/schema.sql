@@ -116,5 +116,7 @@ CREATE TABLE IF NOT EXISTS `youtube_alert` (
 	`channel_name` VARCHAR(256),
 	`notify_channel` INTEGER NOT NULL,
 	`message` VARCHAR(2000) NOT NULL,
-	`last_video_id` VARCHAR(64)
+	`last_video_id` VARCHAR(64),
+	`last_video_title` VARCHAR(512),
+	`last_video_date` DATETIME
 );

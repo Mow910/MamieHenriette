@@ -22,11 +22,13 @@ RUN sed -i 's/# fr_FR.UTF-8 UTF-8/fr_FR.UTF-8 UTF-8/' /etc/locale.gen; \
 
 COPY requirements.txt .
 COPY run-web.py .
+COPY shared_stats.py .
 COPY ./database ./database
 COPY ./discordbot ./discordbot
 COPY ./protondb ./protondb
 COPY ./webapp ./webapp
 COPY ./twitchbot ./twitchbot
+COPY ./youtubebot ./youtubebot
 COPY start.sh /start.sh
 
 RUN python3 -m venv /app/venv && \
