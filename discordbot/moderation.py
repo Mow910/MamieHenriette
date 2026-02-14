@@ -1719,11 +1719,12 @@ class TransferReasonModal(Modal, title="Raison du transfert"):
 		style=discord.TextStyle.paragraph
 	)
 	
-	def __init__(self, message: discord.Message, bot, target_channel):
+	def __init__(self, message: discord.Message, bot, target_channel, selected_tags=None):
 		super().__init__()
 		self.message = message
 		self.bot = bot
 		self.target_channel = target_channel
+		self.selected_tags = selected_tags or []
 	
 	async def on_submit(self, interaction: discord.Interaction):
 		await interaction.response.defer(ephemeral=True)
@@ -1773,9 +1774,14 @@ class TransferReasonModal(Modal, title="Raison du transfert"):
 					content=full_content,
 					embeds=embeds[:10] if embeds else [],
 					files=files_to_send,
+					applied_tags=self.selected_tags,
 					reason=f"Transfert depuis {source_channel.name} par {interaction.user.name}"
 				)
 				transferred_message = thread.message
+				
+				if self.selected_tags:
+					tag_names = ", ".join([tag.name for tag in self.selected_tags])
+					logging.info(f"Post créé avec les tags: {tag_names}")
 				
 			except discord.HTTPException as e:
 				logging.error(f"Erreur lors de la création du post dans le forum: {e}")
@@ -1862,6 +1868,42 @@ class TransferReasonModal(Modal, title="Raison du transfert"):
 		
 		await send_to_moderation_log_channel(self.bot, log_embed)
 
+class ForumTagSelect(Select):
+	def __init__(self, message: discord.Message, bot, target_channel: ForumChannel):
+		options = []
+		for tag in target_channel.available_tags[:25]:
+			options.append(discord.SelectOption(
+				label=tag.name,
+				value=str(tag.id),
+				emoji=tag.emoji if tag.emoji else None
+			))
+		
+		super().__init__(
+			placeholder="Sélectionnez un ou plusieurs tags...",
+			options=options,
+			min_values=1,
+			max_values=min(5, len(options))
+		)
+		self.message = message
+		self.bot = bot
+		self.target_channel = target_channel
+	
+	async def callback(self, interaction: discord.Interaction):
+		selected_tags = []
+		for tag_id_str in self.values:
+			tag_id = int(tag_id_str)
+			tag = discord.utils.get(self.target_channel.available_tags, id=tag_id)
+			if tag:
+				selected_tags.append(tag)
+		
+		modal = TransferReasonModal(self.message, self.bot, self.target_channel, selected_tags)
+		await interaction.response.send_modal(modal)
+
+class ForumTagView(View):
+	def __init__(self, message: discord.Message, bot, target_channel: ForumChannel):
+		super().__init__(timeout=180)
+		self.add_item(ForumTagSelect(message, bot, target_channel))
+
 class TransferChannelSelect(ChannelSelect):
 	def __init__(self, message: discord.Message, bot):
 		super().__init__(
@@ -1881,8 +1923,12 @@ class TransferChannelSelect(ChannelSelect):
 			await interaction.response.send_message("❌ Impossible de récupérer le canal sélectionné.", ephemeral=True)
 			return
 		
-		modal = TransferReasonModal(self.message, self.bot, target_channel)
-		await interaction.response.send_modal(modal)
+		if isinstance(target_channel, ForumChannel) and target_channel.available_tags:
+			view = ForumTagView(self.message, self.bot, target_channel)
+			await interaction.response.send_message("🏷️ Sélectionnez un ou plusieurs tags pour ce post :", view=view, ephemeral=True)
+		else:
+			modal = TransferReasonModal(self.message, self.bot, target_channel)
+			await interaction.response.send_modal(modal)
 
 class TransferView(View):
 	def __init__(self, message: discord.Message, bot):
