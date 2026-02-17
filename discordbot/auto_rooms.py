@@ -16,13 +16,14 @@ _control_message_ids: dict[int, tuple[int, int]] = {}
 REACTIONS = [
 	("🔓", "open", "Ouvert"),
 	("🔒", "closed", "Fermé"),
-	("🛡️", "private", "Privé"),
+	("🔐", "private", "Privé"),
 	("✅", "whitelist", "Liste blanche"),
 	("🚫", "blacklist", "Liste noire"),
 	("🧹", "purge", "Purge"),
 	("👑", "transfer", "Propriété"),
 	("🎤", "speak", "Micro"),
 	("📹", "stream", "Vidéo"),
+	("📊", "soundboards", "Soundboards"),
 	("📝", "status", "Statut"),
 ]
 
@@ -34,40 +35,85 @@ def _status_display(access_mode: str) -> str:
 	if access_mode == "closed":
 		return "🔒 Fermé"
 	if access_mode == "private":
-		return "🔒 Privé"
+		return "🔐 Privé"
 	return "🔓 Ouvert"
 
 
 def _status_emoji(access_mode: str) -> str:
 	"""Emoji cadenas seul pour le nom du channel."""
+	if access_mode == "private":
+		return "🔐"
 	return "🔓" if access_mode == "open" else "🔒"
 
 
-def _build_control_embed(owner: Member, voice_channel: discord.VoiceChannel, access_mode: str) -> discord.Embed:
-	"""Construit l’embed de config avec infos du salon."""
+def _build_control_embed(owner: Member, voice_channel: discord.VoiceChannel, access_mode: str, room: dict = None) -> discord.Embed:
+	"""Construit l'embed de config avec infos du salon."""
 	embed = discord.Embed(
-		title="Configuration du salon",
+		title="⚙️ Configuration du salon",
 		description=(
-			"Voici l’espace de configuration de votre salon vocal. "
-			"Utilisez les réactions ci-dessous — seul le propriétaire peut réagir."
+			"Voici l'espace de configuration de votre salon vocal temporaire. "
+			"Les différentes options disponibles vous permettent de personnaliser les permissions de votre salon selon vos préférences."
 		),
-		color=discord.Color.blurple()
+		color=discord.Color.orange()
 	)
-	members_count = len(voice_channel.members)
-	user_limit = voice_channel.user_limit or 0
-	limit_text = f"{user_limit} max" if user_limit else "Illimitée"
-	members_text = f"{members_count} / {user_limit}" if user_limit else str(members_count)
-	bitrate_kbps = (voice_channel.bitrate or 0) // 1000
-
-	embed.add_field(name="Propriétaire", value=owner.mention, inline=True)
-	embed.add_field(name="Statut du salon", value=_status_display(access_mode), inline=True)
-	embed.add_field(name="Nom du salon", value=voice_channel.name, inline=True)
-	embed.add_field(name="Membres", value=members_text, inline=True)
-	embed.add_field(name="Limite", value=limit_text, inline=True)
-	embed.add_field(name="Bitrate", value=f"{bitrate_kbps} kbps", inline=True)
-	embed.add_field(name="Accès", value="🔓 Ouvert · 🔒 Fermé · 🛡️ Privé", inline=False)
-	embed.add_field(name="Listes", value="✅ Liste blanche · 🚫 Liste noire", inline=False)
-	embed.add_field(name="Actions", value="🧹 Purge · 👑 Propriété · 🎤 Micro · 📹 Vidéo · 📝 Statut", inline=False)
+	
+	# Récupération des infos
+	whitelist = room.get("whitelist", set()) if room else set()
+	blacklist = room.get("blacklist", set()) if room else set()
+	whitelist_text = f"{len(whitelist)} membre(s)" if whitelist else "Aucun"
+	blacklist_text = f"{len(blacklist)} membre(s)" if blacklist else "Aucun"
+	
+	# Section Propriétaire
+	embed.add_field(
+		name=f"👤 Propriétaire du salon : {owner.display_name}",
+		value="",
+		inline=False
+	)
+	
+	# Section Modes d'accès
+	mode_open = "🔓 **Ouvert**\nLe salon sera ouvert à tous les membres, sauf ceux figurant sur la liste noire."
+	mode_closed = "🔒 **Fermé**\nLe salon sera visible de tous, mais seulement accessible à la liste blanche."
+	mode_private = "🔐 **Privé**\nLe salon ne sera visible et accessible qu'aux membres de la liste blanche."
+	
+	embed.add_field(name=mode_open, value="", inline=True)
+	embed.add_field(name=mode_closed, value="", inline=True)
+	embed.add_field(name=mode_private, value="", inline=True)
+	
+	# Section Listes
+	embed.add_field(
+		name="📝 **Liste blanche**",
+		value=f"Les membres présents dans cette liste pourront toujours rejoindre le salon.\n\n{whitelist_text}",
+		inline=True
+	)
+	embed.add_field(
+		name="🚫 **Liste noire**",
+		value=f"Les membres présents dans cette liste ne pourront jamais rejoindre le salon.\n\n{blacklist_text}",
+		inline=True
+	)
+	embed.add_field(name="\u200b", value="", inline=True)  # Spacer
+	
+	# Section Purge
+	embed.add_field(
+		name="🧹 **Purge**",
+		value="Déconnecter tous les membres du salon vocal à l'exception de ceux présents dans la liste blanche.",
+		inline=False
+	)
+	
+	# Section Transfert
+	embed.add_field(
+		name="👑 **Transférer**",
+		value="Transférer la gestion du salon au membre de votre choix.",
+		inline=False
+	)
+	
+	# Note importante
+	embed.add_field(
+		name="💡",
+		value="Les membres de la liste blanche ne sont pas impactés par les permissions refusées aux membres.",
+		inline=False
+	)
+	
+	embed.set_footer(text="Réagissez avec les émojis ci-dessous pour configurer votre salon")
 	return embed
 
 
@@ -145,7 +191,7 @@ async def _handle_reaction_action(bot: discord.Client, guild_id: int, owner_id: 
 	"""channel = salon vocal (partie texte / onglet Discussion)."""
 	room = _get_room(guild_id, owner_id)
 	if not room:
-		await channel.send("Ce salon n’existe plus.")
+		await channel.send("Ce salon n'existe plus.")
 		return
 	voice_channel = bot.get_channel(room["voice_channel_id"])
 	if not voice_channel or not isinstance(voice_channel, discord.VoiceChannel):
@@ -157,34 +203,32 @@ async def _handle_reaction_action(bot: discord.Client, guild_id: int, owner_id: 
 		await _apply_access_mode(voice_channel, action, room.get("whitelist", set()), room.get("blacklist", set()))
 		# Mettre à jour le cadenas dans le nom du channel
 		try:
-			base_name = voice_channel.name.rstrip(" 🔓🔒")
+			base_name = voice_channel.name.rstrip(" 🔓🔒🔐")
 			new_name = f"{base_name} {_status_emoji(action)}"
 			await voice_channel.edit(name=new_name)
 		except discord.HTTPException:
 			pass
-		await channel.send(f"Accès du salon défini sur **{action}**.")
-		# Mettre à jour uniquement le statut (cadenas) dans le message de config
-		control_message_id = room.get("control_message_id")
-		if control_message_id:
-			try:
-				msg = await channel.fetch_message(control_message_id)
-				if msg.embeds:
-					embed = msg.embeds[0].copy()
-					for i, f in enumerate(embed.fields):
-						if f.name == "Statut du salon":
-							embed.set_field_at(i, name="Statut du salon", value=_status_display(action), inline=f.inline)
-							break
-					else:
-						embed.add_field(name="Statut du salon", value=_status_display(action), inline=False)
-					await msg.edit(embed=embed)
-			except discord.HTTPException:
-				pass
+		await channel.send(f"Accès du salon défini sur **{_status_display(action)}**.")
+		# Mettre à jour l'embed
+		await _update_control_panel(bot, guild_id, owner_id, channel)
 
 	elif action == "whitelist":
-		await channel.send("Liste blanche : mentionnez un membre pour l’ajouter/retirer.")
+		whitelist = room.get("whitelist", set())
+		whitelist_text = ", ".join([f"<@{uid}>" for uid in whitelist]) if whitelist else "Aucun membre"
+		await channel.send(
+			f"**📝 Liste blanche actuelle :** {whitelist_text}\n\n"
+			f"Mentionnez un membre pour l'ajouter ou le retirer de la liste blanche."
+		)
+		room["awaiting_whitelist"] = True
 
 	elif action == "blacklist":
-		await channel.send("Liste noire : mentionnez un membre pour l’ajouter/retirer.")
+		blacklist = room.get("blacklist", set())
+		blacklist_text = ", ".join([f"<@{uid}>" for uid in blacklist]) if blacklist else "Aucun membre"
+		await channel.send(
+			f"**🚫 Liste noire actuelle :** {blacklist_text}\n\n"
+			f"Mentionnez un membre pour l'ajouter ou le retirer de la liste noire."
+		)
+		room["awaiting_blacklist"] = True
 
 	elif action == "purge":
 		whitelist = room.get("whitelist", set())
@@ -197,30 +241,80 @@ async def _handle_reaction_action(bot: discord.Client, guild_id: int, owner_id: 
 				kicked += 1
 			except discord.HTTPException:
 				pass
-		await channel.send(f"Purge effectuée : {kicked} membre(s) déconnecté(s).")
+		await channel.send(f"🧹 Purge effectuée : {kicked} membre(s) déconnecté(s).")
 
 	elif action == "transfer":
-		await channel.send("Transférer le salon : mentionnez le membre à qui donner la propriété.")
+		await channel.send(
+			f"**👑 Transfert de propriété**\n\n"
+			f"Mentionnez le membre à qui vous souhaitez transférer la gestion du salon."
+		)
+		room["awaiting_transfer"] = True
 
-	elif action in ("speak", "stream"):
+	elif action in ("speak", "stream", "soundboards"):
 		everyone = voice_channel.guild.default_role
 		overwrites = dict(voice_channel.overwrites)
 		ow = overwrites.get(everyone) or discord.PermissionOverwrite()
+		
+		# BUG FIX : Par défaut, Discord autorise stream, speak et soundboards
+		# Si la permission n'est pas explicitement définie (None), on considère qu'elle est True
 		current = getattr(ow, action)
-		setattr(ow, action, not current if current is not None else False)
+		if current is None:
+			# Permission non définie = autorisée par défaut dans Discord
+			# On veut la désactiver lors du premier clic
+			setattr(ow, action, False)
+			new_value = False
+		else:
+			# Permission définie, on l'inverse
+			setattr(ow, action, not current)
+			new_value = not current
+		
 		overwrites[everyone] = ow
 		await voice_channel.edit(overwrites=overwrites)
-		label = "Micro" if action == "speak" else "Vidéo"
-		await channel.send(f"{label} : {'autorisé' if getattr(ow, action) else 'désactivé'} pour tous.")
+		
+		labels = {"speak": "Micro", "stream": "Vidéo/Partage d'écran", "soundboards": "Soundboards"}
+		label = labels.get(action, action.capitalize())
+		await channel.send(f"{label} : {'autorisé' if new_value else 'désactivé'} pour tous.")
 
 	elif action == "status":
-		status_text = _status_display(room.get("access_mode", "open"))
-		await channel.send(f"Statut du salon : {status_text}\nRépondez avec le nouveau nom du salon pour le modifier.")
+		current_status = voice_channel.status or "Aucun statut défini"
+		await channel.send(
+			f"**Statut actuel du salon :** {current_status}\n\n"
+			f"Pour modifier le statut du salon (le texte affiché en haut du salon vocal), "
+			f"répondez avec le nouveau statut (max 500 caractères).\n"
+			f"💡 Pour supprimer le statut, répondez avec `clear` ou `effacer`."
+		)
+		room["awaiting_status"] = True
 
 
-async def send_control_panel(bot: discord.Client, guild_id: int, owner: Member, voice_channel: discord.VoiceChannel) -> Optional[int]:
-	"""Envoie le message de config avec réactions dans la partie texte du salon vocal (onglet Discussion). Seul le proprio peut réagir. Retourne l’id du message."""
-	embed = _build_control_embed(owner, voice_channel, "open")
+async def _update_control_panel(bot: discord.Client, guild_id: int, owner_id: int, channel):
+	"""Met à jour le panneau de contrôle avec les nouvelles informations."""
+	room = _get_room(guild_id, owner_id)
+	if not room:
+		return
+	
+	control_message_id = room.get("control_message_id")
+	if not control_message_id:
+		return
+	
+	voice_channel = bot.get_channel(room["voice_channel_id"])
+	if not voice_channel or not isinstance(voice_channel, discord.VoiceChannel):
+		return
+	
+	owner = voice_channel.guild.get_member(owner_id)
+	if not owner:
+		return
+	
+	try:
+		msg = await channel.fetch_message(control_message_id)
+		embed = _build_control_embed(owner, voice_channel, room.get("access_mode", "open"), room)
+		await msg.edit(embed=embed)
+	except discord.HTTPException:
+		pass
+
+
+async def send_control_panel(bot: discord.Client, guild_id: int, owner: Member, voice_channel: discord.VoiceChannel, room: dict) -> Optional[int]:
+	"""Envoie le message de config avec réactions dans la partie texte du salon vocal (onglet Discussion). Seul le proprio peut réagir. Retourne l'id du message."""
+	embed = _build_control_embed(owner, voice_channel, "open", room)
 
 	try:
 		# Message dans la partie texte du vocal (onglet Discussion à droite)
@@ -229,7 +323,7 @@ async def send_control_panel(bot: discord.Client, guild_id: int, owner: Member, 
 			await msg.add_reaction(emoji)
 		return msg.id
 	except discord.HTTPException as e:
-		logging.error(f"Impossible d’envoyer le panneau Auto Room dans le vocal : {e}")
+		logging.error(f"Impossible d'envoyer le panneau Auto Room dans le vocal : {e}")
 		return None
 
 
@@ -254,16 +348,22 @@ async def on_voice_state_update_auto_rooms(bot: discord.Client, member: Member, 
 				reason="Auto room"
 			)
 			await member.move_to(new_channel)
-			control_message_id = await send_control_panel(bot, guild.id, member, new_channel)
-			_set_room(guild.id, member.id, {
+			
+			# Créer la room data d'abord
+			room_data = {
 				"guild_id": guild.id,
 				"voice_channel_id": new_channel.id,
-				"control_message_id": control_message_id,
+				"control_message_id": None,  # Sera mis à jour après
 				"owner_id": member.id,
 				"whitelist": set(),
 				"blacklist": set(),
 				"access_mode": "open",
-			})
+			}
+			
+			control_message_id = await send_control_panel(bot, guild.id, member, new_channel, room_data)
+			room_data["control_message_id"] = control_message_id
+			_set_room(guild.id, member.id, room_data)
+			
 			logging.info(f"Auto room créé : {new_channel.name} pour {member.display_name}")
 		except discord.HTTPException as e:
 			logging.error(f"Erreur création auto room : {e}")
@@ -285,6 +385,111 @@ async def on_voice_state_update_auto_rooms(bot: discord.Client, member: Member, 
 					await before.channel.delete(reason="Auto room vide")
 				except discord.HTTPException:
 					pass
+
+
+async def on_message_auto_rooms(bot: discord.Client, message: discord.Message):
+	"""Gère les messages dans les salons vocaux pour les actions (statut, liste blanche/noire, etc.)."""
+	if message.author.bot:
+		return
+	if not ConfigurationHelper().getValue("auto_rooms_enable"):
+		return
+	
+	# Vérifier si c'est dans un salon vocal (partie texte)
+	if not isinstance(message.channel, discord.VoiceChannel):
+		return
+	
+	# Trouver si c'est une auto room
+	result = _find_room_by_channel(message.guild.id, message.channel.id)
+	if not result:
+		return
+	
+	owner_id, room = result
+	
+	# Seul le propriétaire peut interagir
+	if message.author.id != owner_id:
+		return
+	
+	voice_channel = message.channel
+	
+	# Gestion du statut de salon
+	if room.get("awaiting_status"):
+		room["awaiting_status"] = False
+		new_status = message.content.strip()
+		
+		try:
+			if new_status.lower() in ("clear", "effacer", "supprimer", "delete"):
+				await voice_channel.edit(status=None)
+				await message.channel.send("✅ Le statut du salon a été supprimé.")
+			elif len(new_status) > 500:
+				await message.channel.send("❌ Le statut ne peut pas dépasser 500 caractères.")
+				room["awaiting_status"] = True  # Réessayer
+			else:
+				await voice_channel.edit(status=new_status)
+				await message.channel.send(f"✅ Le statut du salon a été mis à jour : **{new_status}**")
+		except discord.HTTPException as e:
+			await message.channel.send(f"❌ Erreur lors de la modification du statut : {e}")
+		return
+	
+	# Gestion de la liste blanche (si en attente)
+	if room.get("awaiting_whitelist"):
+		room["awaiting_whitelist"] = False
+		if message.mentions:
+			target = message.mentions[0]
+			whitelist = room.get("whitelist", set())
+			if target.id in whitelist:
+				whitelist.remove(target.id)
+				await message.channel.send(f"✅ {target.mention} a été retiré de la liste blanche.")
+			else:
+				whitelist.add(target.id)
+				await message.channel.send(f"✅ {target.mention} a été ajouté à la liste blanche.")
+			room["whitelist"] = whitelist
+			await _apply_access_mode(voice_channel, room.get("access_mode", "open"), whitelist, room.get("blacklist", set()))
+			await _update_control_panel(bot, message.guild.id, owner_id, message.channel)
+		return
+	
+	# Gestion de la liste noire (si en attente)
+	if room.get("awaiting_blacklist"):
+		room["awaiting_blacklist"] = False
+		if message.mentions:
+			target = message.mentions[0]
+			blacklist = room.get("blacklist", set())
+			if target.id in blacklist:
+				blacklist.remove(target.id)
+				await message.channel.send(f"✅ {target.mention} a été retiré de la liste noire.")
+			else:
+				blacklist.add(target.id)
+				await message.channel.send(f"✅ {target.mention} a été ajouté à la liste noire.")
+			room["blacklist"] = blacklist
+			await _apply_access_mode(voice_channel, room.get("access_mode", "open"), room.get("whitelist", set()), blacklist)
+			await _update_control_panel(bot, message.guild.id, owner_id, message.channel)
+		return
+	
+	# Gestion du transfert de propriété (si en attente)
+	if room.get("awaiting_transfer"):
+		room["awaiting_transfer"] = False
+		if message.mentions:
+			new_owner = message.mentions[0]
+			if new_owner.id == owner_id:
+				await message.channel.send("❌ Vous êtes déjà le propriétaire du salon.")
+				return
+			
+			# Transférer la propriété
+			old_owner_id = owner_id
+			_del_room(message.guild.id, old_owner_id)
+			room["owner_id"] = new_owner.id
+			_set_room(message.guild.id, new_owner.id, room)
+			
+			# Renommer le salon
+			try:
+				base_name = f"Salon de {new_owner.display_name}"
+				new_name = f"{base_name} {_status_emoji(room.get('access_mode', 'open'))}"
+				await voice_channel.edit(name=new_name)
+			except discord.HTTPException:
+				pass
+			
+			await message.channel.send(f"✅ La propriété du salon a été transférée à {new_owner.mention}.")
+			await _update_control_panel(bot, message.guild.id, new_owner.id, message.channel)
+		return
 
 
 async def on_raw_reaction_add_auto_rooms(bot: discord.Client, payload: discord.RawReactionActionEvent):
