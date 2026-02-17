@@ -27,7 +27,7 @@ from discordbot.moderation import (
 )
 from discordbot.welcome import sendWelcomeMessage, sendLeaveMessage, updateInviteCache
 from discordbot.youtube import checkYouTubeVideos
-from discordbot.auto_rooms import on_voice_state_update_auto_rooms, on_raw_reaction_add_auto_rooms
+from discordbot.auto_rooms import on_voice_state_update_auto_rooms, on_raw_reaction_add_auto_rooms, on_message_auto_rooms
 from protondb import searhProtonDb
 
 class DiscordBot(discord.Client):
@@ -151,6 +151,10 @@ bot = DiscordBot(intents=intents)
 async def on_message(message: Message):
 	if message.author == bot.user:
 		return
+	
+	# Gestion des messages dans les auto rooms (avant le check des commandes !)
+	await on_message_auto_rooms(bot, message)
+	
 	if not message.content.startswith('!'):
 		return
 	command_name = message.content.split()[0]
