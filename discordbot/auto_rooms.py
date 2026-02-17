@@ -160,11 +160,26 @@ def _find_room_by_message(message_id: int) -> Optional[tuple[int, int, dict]]:
 async def _apply_access_mode(channel: discord.VoiceChannel, mode: str, whitelist: set, blacklist: set):
 	guild = channel.guild
 	everyone = guild.default_role
-	overwrites = {}
+	overwrites = dict(channel.overwrites)  # Récupérer les overwrites existants
+	
+	# Préserver les permissions existantes pour everyone (stream, speak, soundboards, etc.)
+	existing_everyone_ow = overwrites.get(everyone, discord.PermissionOverwrite())
 	everyone_ow = discord.PermissionOverwrite()
+	
+	# Copier les permissions importantes qui ne doivent pas être écrasées
+	everyone_ow.stream = existing_everyone_ow.stream
+	everyone_ow.speak = existing_everyone_ow.speak
+	everyone_ow.use_soundboard = existing_everyone_ow.use_soundboard
+	
 	if mode == "open":
 		everyone_ow.connect = True
 		everyone_ow.view_channel = True
+		# Retirer les overwrites des membres qui ne sont plus dans la blacklist
+		for target in list(overwrites.keys()):
+			if target != everyone and isinstance(target, discord.Member):
+				if target.id not in blacklist:
+					overwrites.pop(target, None)
+		# Ajouter les overwrites pour la blacklist
 		for uid in blacklist:
 			m = guild.get_member(uid)
 			if m:
@@ -172,6 +187,12 @@ async def _apply_access_mode(channel: discord.VoiceChannel, mode: str, whitelist
 	elif mode == "closed":
 		everyone_ow.connect = False
 		everyone_ow.view_channel = True
+		# Retirer les overwrites des membres qui ne sont plus dans la whitelist
+		for target in list(overwrites.keys()):
+			if target != everyone and isinstance(target, discord.Member):
+				if target.id not in whitelist:
+					overwrites.pop(target, None)
+		# Ajouter les overwrites pour la whitelist
 		for uid in whitelist:
 			m = guild.get_member(uid)
 			if m:
@@ -179,10 +200,17 @@ async def _apply_access_mode(channel: discord.VoiceChannel, mode: str, whitelist
 	elif mode == "private":
 		everyone_ow.connect = False
 		everyone_ow.view_channel = False
+		# Retirer les overwrites des membres qui ne sont plus dans la whitelist
+		for target in list(overwrites.keys()):
+			if target != everyone and isinstance(target, discord.Member):
+				if target.id not in whitelist:
+					overwrites.pop(target, None)
+		# Ajouter les overwrites pour la whitelist
 		for uid in whitelist:
 			m = guild.get_member(uid)
 			if m:
 				overwrites[m] = discord.PermissionOverwrite(connect=True, view_channel=True)
+	
 	overwrites[everyone] = everyone_ow
 	await channel.edit(overwrites=overwrites)
 
