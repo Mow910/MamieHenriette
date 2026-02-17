@@ -229,14 +229,7 @@ async def _handle_reaction_action(bot: discord.Client, guild_id: int, owner_id: 
 	if action in ("open", "closed", "private"):
 		room["access_mode"] = action
 		await _apply_access_mode(voice_channel, action, room.get("whitelist", set()), room.get("blacklist", set()))
-		# Mettre à jour le cadenas dans le nom du channel
-		try:
-			base_name = voice_channel.name.rstrip(" 🔓🔒🔐")
-			new_name = f"{base_name} {_status_emoji(action)}"
-			await voice_channel.edit(name=new_name)
-		except discord.HTTPException:
-			pass
-		await channel.send(f"Accès du salon défini sur **{_status_display(action)}**.")
+		await channel.send(f"✅ Accès du salon défini sur **{_status_display(action)}**.")
 		# Mettre à jour l'embed
 		await _update_control_panel(bot, guild_id, owner_id, channel)
 
@@ -367,8 +360,8 @@ async def on_voice_state_update_auto_rooms(bot: discord.Client, member: Member, 
 
 	if after.channel and after.channel.id == trigger_channel_id:
 		category = after.channel.category
-		# Nom du salon avec statut (cadenas) à la création
-		channel_name = f"Salon de {member.display_name} {_status_emoji('open')}"
+		# Nom du salon (simple, sans emoji pour éviter le rate limiting)
+		channel_name = f"Salon de {member.display_name}"
 		try:
 			new_channel = await guild.create_voice_channel(
 				name=channel_name,
@@ -507,13 +500,12 @@ async def on_message_auto_rooms(bot: discord.Client, message: discord.Message):
 			room["owner_id"] = new_owner.id
 			_set_room(message.guild.id, new_owner.id, room)
 			
-			# Renommer le salon
+			# Renommer le salon (optionnel, peut être commenté pour éviter rate limit)
 			try:
-				base_name = f"Salon de {new_owner.display_name}"
-				new_name = f"{base_name} {_status_emoji(room.get('access_mode', 'open'))}"
+				new_name = f"Salon de {new_owner.display_name}"
 				await voice_channel.edit(name=new_name)
-			except discord.HTTPException:
-				pass
+			except discord.HTTPException as e:
+				logging.warning(f"Impossible de renommer le salon lors du transfert : {e}")
 			
 			await message.channel.send(f"✅ La propriété du salon a été transférée à {new_owner.mention}.")
 			await _update_control_panel(bot, message.guild.id, new_owner.id, message.channel)
