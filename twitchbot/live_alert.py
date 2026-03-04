@@ -47,7 +47,13 @@ async def checkOnlineStreamer(twitch: Twitch) :
 	global _live_alert_first_check
 	with webapp.app_context() : 
 		alerts : list[LiveAlert] = LiveAlert.query.all()
-		streams = await _retreiveStreams(twitch, alerts)
+
+		try:
+			streams = await _retreiveStreams(twitch, alerts)
+		except Exception as e:
+			logger.error(f'Erreur lors de la récupération des streams, on conserve l\'état actuel : {e}')
+			return
+
 		watch_stream = None
 		
 		# Récupération du statut du live principal (channel configuré)
@@ -69,7 +75,7 @@ async def checkOnlineStreamer(twitch: Twitch) :
 		if _live_alert_first_check:
 			logger.info('Live Alert: première vérification, synchronisation sans notification')
 			for alert in alerts:
-				stream = next((s for s in streams if s.user_login == alert.login), None)
+				stream = next((s for s in streams if s.user_login.lower() == (alert.login or '').lower()), None)
 				if stream:
 					alert.online = True
 					if alert.watch_activity and alert.enable:
@@ -83,7 +89,7 @@ async def checkOnlineStreamer(twitch: Twitch) :
 		
 		# Vérifications normales ensuite
 		for alert in alerts : 
-			stream = next((s for s in streams if s.user_login == alert.login), None)
+			stream = next((s for s in streams if s.user_login.lower() == (alert.login or '').lower()), None)
 			if stream : 
 				logger.info(f'Streamer en ligne : {alert.login}')
 				if not alert.online and alert.enable :

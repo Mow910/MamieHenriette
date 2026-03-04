@@ -182,6 +182,52 @@ def add_twitch_commande():
     
     return redirect(url_for('twitch_moderation'))
 
+@webapp.route("/twitch-moderation/edit/<int:cmd_id>", methods=['POST'])
+@require_page("twitch_moderation")
+def edit_twitch_commande(cmd_id):
+    if not can_write_page("twitch_moderation"):
+        return jsonify({"success": False, "error": "Permission refusée"}), 403
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"success": False, "error": "Données invalides"}), 400
+
+    commande = Commande.query.get_or_404(cmd_id)
+
+    trigger = (data.get('trigger') or '').strip()
+    response = (data.get('response') or '').strip()
+    twitch_permission = data.get('twitch_permission', commande.twitch_permission or 'viewer')
+
+    if not trigger or not response:
+        return jsonify({"success": False, "error": "Commande et réponse requises"}), 400
+
+    if not trigger.startswith('!'):
+        trigger = '!' + trigger
+
+    if twitch_permission not in TWITCH_PERMISSIONS:
+        twitch_permission = 'viewer'
+
+    duplicate = Commande.query.filter(Commande.trigger == trigger, Commande.id != cmd_id).first()
+    if duplicate:
+        return jsonify({"success": False, "error": f"La commande {trigger} existe déjà"}), 409
+
+    commande.trigger = trigger
+    commande.response = response
+    commande.twitch_permission = twitch_permission
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "command": {
+            "id": commande.id,
+            "trigger": commande.trigger,
+            "response": commande.response,
+            "twitch_permission": commande.twitch_permission,
+            "permission_label": TWITCH_PERMISSIONS.get(commande.twitch_permission, 'Tous'),
+        }
+    })
+
+
 @webapp.route("/twitch-moderation/banned-word/add", methods=['POST'])
 @require_page("twitch_moderation")
 def add_banned_word():
@@ -261,6 +307,42 @@ def get_twitch_messages():
     """Retourne les derniers messages du chat Twitch"""
     messages = webapp.config["BOT_STATUS"].get("twitch_chat_messages", [])
     return jsonify({"messages": messages})
+
+@webapp.route("/twitch-moderation/logs/poll")
+@require_page("twitch_moderation")
+def poll_twitch_logs():
+    """Retourne les logs de modération plus récents qu'un timestamp donné."""
+    since_str = request.args.get('since', '')
+    since = None
+    if since_str:
+        try:
+            since = datetime.fromisoformat(since_str)
+        except ValueError:
+            pass
+
+    query = TwitchModerationLog.query.order_by(TwitchModerationLog.created_at.desc())
+    if since:
+        query = query.filter(TwitchModerationLog.created_at > since)
+    logs = query.limit(20).all()
+
+    now = datetime.now().isoformat()
+    return jsonify({
+        "logs": [
+            {
+                "id": log.id,
+                "action": log.action,
+                "moderator": log.moderator,
+                "target": log.target or '-',
+                "details": log.details or '-',
+                "created_at": log.created_at.strftime('%d/%m %H:%M') if log.created_at else '',
+                "created_at_iso": log.created_at.isoformat() if log.created_at else '',
+            }
+            for log in logs
+        ],
+        "timestamp": now,
+        "total": TwitchModerationLog.query.count(),
+    })
+
 
 @webapp.route("/twitch-moderation/execute-action", methods=['POST'])
 @require_page("twitch_moderation")
