@@ -289,6 +289,29 @@
 	</div>
 	{% if not is_live %}</div>{% endif %}
 
+	<!-- Shoutbox modérateurs (IRC) -->
+	<div class="section-card flex flex-col" style="height: 260px;">
+		<div class="section-card-header flex items-center justify-between">
+			<div class="flex items-center gap-2">
+				<svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a2 2 0 01-2-2v-6a2 2 0 012-2h8z"></path></svg>
+				<span>Shoutbox Modos</span>
+				<span class="text-xs text-gray-400" id="shoutboxCount"></span>
+			</div>
+			<button onclick="clearShoutbox()" class="text-xs text-red-500 hover:text-red-600" title="Effacer">Effacer</button>
+		</div>
+		<div class="flex-1 overflow-y-auto font-mono text-xs p-2 bg-gray-950 dark:bg-gray-950 bg-opacity-95" id="shoutboxDisplay" style="scrollbar-width: thin;">
+			<div class="text-gray-500 text-center py-4" id="shoutboxPlaceholder">Aucun message</div>
+		</div>
+		<div class="border-t border-gray-200 dark:border-gray-700 p-2 bg-gray-50 dark:bg-gray-800">
+			<form onsubmit="sendShoutboxMessage(event)" class="flex gap-1.5">
+				<span class="text-xs text-indigo-400 font-mono flex items-center">&gt;</span>
+				<input type="text" id="shoutboxInput" placeholder="Message..." maxlength="500" autocomplete="off"
+					class="flex-1 px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 text-xs font-mono focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500">
+				<button type="submit" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-medium transition-colors">Envoyer</button>
+			</form>
+		</div>
+	</div>
+
 	<!-- Commandes de modération & Logs -->
 	<div class="grid md:grid-cols-2 gap-4">
 		<div class="section-card">
@@ -859,5 +882,139 @@ function saveEditCommand() {
 document.addEventListener('keydown', function(e) {
 	if (e.key === 'Escape') closeEditModal();
 });
+
+// =============================
+// Shoutbox modérateurs (IRC)
+// =============================
+var shoutboxKnownIds = new Set();
+var shoutboxLastTimestamp = '';
+var shoutboxAutoScroll = true;
+
+var SHOUTBOX_COLORS = [
+	'#6366f1', '#8b5cf6', '#ec4899', '#14b8a6', '#f59e0b',
+	'#3b82f6', '#10b981', '#ef4444', '#06b6d4', '#84cc16',
+];
+var shoutboxColorMap = {};
+
+function shoutboxColor(name) {
+	if (!shoutboxColorMap[name]) {
+		var hash = 0;
+		for (var i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+		shoutboxColorMap[name] = SHOUTBOX_COLORS[Math.abs(hash) % SHOUTBOX_COLORS.length];
+	}
+	return shoutboxColorMap[name];
+}
+
+function shoutboxTime(isoStr) {
+	var d = new Date(isoStr);
+	return d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
+}
+
+function addShoutboxItem(item) {
+	if (shoutboxKnownIds.has(item.id)) return;
+	shoutboxKnownIds.add(item.id);
+
+	var display = document.getElementById('shoutboxDisplay');
+	var ph = document.getElementById('shoutboxPlaceholder');
+	if (ph) ph.remove();
+
+	var line = document.createElement('div');
+	line.className = 'py-0.5 leading-relaxed';
+
+	var time = '<span class="text-gray-500">[' + shoutboxTime(item.created_at) + ']</span> ';
+
+	if (item.type === 'message') {
+		var color = shoutboxColor(item.author);
+		line.innerHTML = time +
+			'<span style="color:' + color + '" class="font-semibold">&lt;' + escapeHtml(item.author) + '&gt;</span> ' +
+			'<span class="text-gray-200">' + escapeHtml(item.text) + '</span>';
+	} else {
+		var actionUpper = (item.action || '').toUpperCase();
+		var sanctionColor = 'text-red-400';
+		if (['timeout', 'clean', 'permit'].indexOf(item.action) >= 0) sanctionColor = 'text-orange-400';
+		if (['subon', 'suboff', 'emoteon', 'emoteoff', 'follon', 'folloff'].indexOf(item.action) >= 0) sanctionColor = 'text-blue-400';
+		if (item.action === 'unban') sanctionColor = 'text-green-400';
+
+		var text = '*** ' + actionUpper;
+		if (item.moderator) text += ' par ' + item.moderator;
+		if (item.target) text += ' → ' + item.target;
+		if (item.details && item.details !== '-') text += ' (' + item.details + ')';
+		text += ' ***';
+
+		line.innerHTML = time + '<span class="' + sanctionColor + ' font-semibold">' + escapeHtml(text) + '</span>';
+	}
+
+	display.appendChild(line);
+
+	while (display.children.length > 200) display.removeChild(display.firstChild);
+	if (shoutboxAutoScroll) display.scrollTop = display.scrollHeight;
+}
+
+function fetchShoutbox() {
+	var url = '{{ url_for("shoutbox_messages") }}';
+	if (shoutboxLastTimestamp) url += '?since=' + encodeURIComponent(shoutboxLastTimestamp);
+
+	fetch(url)
+		.then(function(r) { return r.json(); })
+		.then(function(data) {
+			if (data.items && data.items.length > 0) {
+				data.items.forEach(addShoutboxItem);
+			}
+			if (data.timestamp) shoutboxLastTimestamp = data.timestamp;
+			var cnt = document.getElementById('shoutboxCount');
+			if (cnt) cnt.textContent = '(' + shoutboxKnownIds.size + ')';
+		})
+		.catch(function(e) { console.error('Shoutbox error:', e); });
+}
+
+function sendShoutboxMessage(event) {
+	event.preventDefault();
+	var input = document.getElementById('shoutboxInput');
+	var message = input.value.trim();
+	if (!message) return;
+
+	var btn = event.target.querySelector('button[type="submit"]');
+	btn.disabled = true;
+
+	fetch('{{ url_for("shoutbox_send") }}', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ message: message })
+	})
+	.then(function(r) { return r.json(); })
+	.then(function(data) {
+		if (data.success) {
+			input.value = '';
+			fetchShoutbox();
+		} else {
+			showNotification(data.error || 'Erreur shoutbox', 'error');
+		}
+	})
+	.catch(function() { showNotification('Erreur réseau', 'error'); })
+	.finally(function() { btn.disabled = false; });
+}
+
+function clearShoutbox() {
+	if (!confirm('Effacer tous les messages de la shoutbox ?')) return;
+	fetch('{{ url_for("shoutbox_clear") }}')
+		.then(function(r) { return r.json(); })
+		.then(function(data) {
+			if (data.success) {
+				var display = document.getElementById('shoutboxDisplay');
+				display.innerHTML = '<div class="text-gray-500 text-center py-4" id="shoutboxPlaceholder">Aucun message</div>';
+				shoutboxKnownIds.clear();
+				shoutboxLastTimestamp = '';
+				showNotification('Shoutbox effacée', 'success');
+			}
+		})
+		.catch(function() { showNotification('Erreur réseau', 'error'); });
+}
+
+document.getElementById('shoutboxDisplay').addEventListener('scroll', function() {
+	shoutboxAutoScroll = this.scrollHeight - this.scrollTop <= this.clientHeight + 30;
+});
+
+setInterval(fetchShoutbox, 3000);
+fetchShoutbox();
 </script>
 {% endblock %}

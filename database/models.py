@@ -227,3 +227,11 @@ class TwitchBannedWord(db.Model):
 	timeout_duration = db.Column(db.Integer, default=60)  # durée du timeout en secondes
 	created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+
+class ModShoutboxMessage(db.Model):
+	__tablename__ = 'mod_shoutbox_message'
+	id = db.Column(db.Integer, primary_key=True)
+	author = db.Column(db.String(64), nullable=False)
+	message = db.Column(db.String(500), nullable=False)
+	created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+

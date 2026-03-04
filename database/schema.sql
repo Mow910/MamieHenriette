@@ -198,3 +198,10 @@ CREATE TABLE IF NOT EXISTS `twitch_event_notification` (
 	embed_thumbnail BOOLEAN NOT NULL DEFAULT TRUE,
 	last_clip_id VARCHAR(128) NULL
 );
+
+CREATE TABLE IF NOT EXISTS `mod_shoutbox_message` (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	`author` VARCHAR(64) NOT NULL,
+	`message` VARCHAR(500) NOT NULL,
+	`created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

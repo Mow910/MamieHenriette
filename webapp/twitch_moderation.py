@@ -2,7 +2,8 @@ from flask import render_template, request, redirect, url_for, jsonify
 from webapp import webapp
 from webapp.auth import require_page, can_write_page
 from database import db
-from database.models import Commande, TwitchModerationLog, TwitchLinkFilter, TwitchBannedWord
+from database.models import Commande, TwitchModerationLog, TwitchLinkFilter, TwitchBannedWord, ModShoutboxMessage
+from flask_login import current_user
 from database.helpers import ConfigurationHelper
 from datetime import datetime, timedelta
 import asyncio
@@ -483,3 +484,87 @@ def execute_moderation_action():
         
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+# =============================
+# Shoutbox modérateurs
+# =============================
+
+@webapp.route("/twitch-moderation/shoutbox/send", methods=['POST'])
+@require_page("twitch_moderation")
+def shoutbox_send():
+    if not can_write_page("twitch_moderation"):
+        return jsonify({"success": False, "error": "Permission refusée"}), 403
+
+    data = request.get_json()
+    message = (data.get('message') or '').strip()[:500]
+    if not message:
+        return jsonify({"success": False, "error": "Message vide"}), 400
+
+    msg = ModShoutboxMessage(
+        author=current_user.username,
+        message=message,
+        created_at=datetime.now(),
+    )
+    db.session.add(msg)
+    db.session.commit()
+    return jsonify({"success": True, "id": msg.id})
+
+
+@webapp.route("/twitch-moderation/shoutbox/messages")
+@require_page("twitch_moderation")
+def shoutbox_messages():
+    since_str = request.args.get('since', '')
+    since = None
+    if since_str:
+        try:
+            since = datetime.fromisoformat(since_str)
+        except ValueError:
+            pass
+
+    chat_query = ModShoutboxMessage.query
+    log_query = TwitchModerationLog.query
+    if since:
+        chat_query = chat_query.filter(ModShoutboxMessage.created_at > since)
+        log_query = log_query.filter(TwitchModerationLog.created_at > since)
+
+    chat_msgs = chat_query.order_by(ModShoutboxMessage.created_at.desc()).limit(100).all()
+    log_msgs = log_query.order_by(TwitchModerationLog.created_at.desc()).limit(100).all()
+
+    items = []
+    for m in chat_msgs:
+        items.append({
+            "type": "message",
+            "id": f"msg-{m.id}",
+            "author": m.author,
+            "text": m.message,
+            "created_at": m.created_at.isoformat() if m.created_at else '',
+        })
+    for log in log_msgs:
+        items.append({
+            "type": "sanction",
+            "id": f"log-{log.id}",
+            "action": log.action,
+            "moderator": log.moderator,
+            "target": log.target or '',
+            "details": log.details or '',
+            "created_at": log.created_at.isoformat() if log.created_at else '',
+        })
+
+    items.sort(key=lambda x: x["created_at"])
+    items = items[-100:]
+
+    return jsonify({
+        "items": items,
+        "timestamp": datetime.now().isoformat(),
+    })
+
+
+@webapp.route("/twitch-moderation/shoutbox/clear")
+@require_page("twitch_moderation")
+def shoutbox_clear():
+    if not can_write_page("twitch_moderation"):
+        return jsonify({"success": False, "error": "Permission refusée"}), 403
+    ModShoutboxMessage.query.delete()
+    db.session.commit()
+    return jsonify({"success": True})
