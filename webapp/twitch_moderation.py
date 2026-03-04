@@ -557,7 +557,22 @@ def shoutbox_messages():
     return jsonify({
         "items": items,
         "timestamp": datetime.now().isoformat(),
+        "online_users": _get_online_users(),
     })
+
+
+def _get_online_users():
+    heartbeats = webapp.config["BOT_STATUS"].get("shoutbox_heartbeats", {})
+    cutoff = datetime.now() - timedelta(seconds=15)
+    return sorted(u for u, t in heartbeats.items() if t > cutoff)
+
+
+@webapp.route("/twitch-moderation/shoutbox/heartbeat", methods=['POST'])
+@require_page("twitch_moderation")
+def shoutbox_heartbeat():
+    hb = webapp.config["BOT_STATUS"].setdefault("shoutbox_heartbeats", {})
+    hb[current_user.username] = datetime.now()
+    return jsonify({"online_users": _get_online_users()})
 
 
 @webapp.route("/twitch-moderation/shoutbox/clear")
@@ -568,3 +583,9 @@ def shoutbox_clear():
     ModShoutboxMessage.query.delete()
     db.session.commit()
     return jsonify({"success": True})
+
+
+@webapp.route("/twitch-moderation/shoutbox/popout")
+@require_page("twitch_moderation")
+def shoutbox_popout():
+    return render_template("shoutbox-popout.html")

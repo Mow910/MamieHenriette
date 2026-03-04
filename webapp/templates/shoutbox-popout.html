@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="fr" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shoutbox Modos</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+	html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #030712; }
+	::-webkit-scrollbar { width: 4px; }
+	::-webkit-scrollbar-track { background: transparent; }
+	::-webkit-scrollbar-thumb { background: #374151; border-radius: 2px; }
+</style>
+</head>
+<body class="bg-gray-950 text-gray-100 flex flex-col h-screen">
+
+<div class="flex items-center justify-between px-3 py-1.5 bg-gray-900 border-b border-gray-800 flex-shrink-0">
+	<div class="flex items-center gap-2">
+		<svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a2 2 0 01-2-2v-6a2 2 0 012-2h8z"></path></svg>
+		<span class="text-sm font-semibold text-gray-200">Shoutbox Modos</span>
+		<span class="text-xs text-gray-500" id="shoutboxCount"></span>
+	</div>
+	<div class="flex items-center gap-3">
+		<div id="onlineIndicator" class="flex items-center gap-1.5 text-xs text-gray-400">
+			<span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+			<span id="onlineCountText">0 en ligne</span>
+		</div>
+	</div>
+</div>
+
+<div class="flex flex-1 overflow-hidden">
+	<div class="flex-1 overflow-y-auto font-mono text-xs p-2" id="shoutboxDisplay" style="scrollbar-width: thin;">
+		<div class="text-gray-500 text-center py-4" id="shoutboxPlaceholder">Aucun message</div>
+	</div>
+	<div class="w-24 border-l border-gray-800 bg-gray-900/50 p-2 overflow-y-auto flex-shrink-0" style="scrollbar-width: thin;">
+		<div class="text-xs text-gray-500 font-semibold mb-1">En ligne</div>
+		<div id="shoutboxOnlineList" class="space-y-1">
+			<div class="text-xs text-gray-600 italic">---</div>
+		</div>
+	</div>
+</div>
+
+<div class="border-t border-gray-800 p-2 bg-gray-900 flex-shrink-0">
+	<form onsubmit="sendShoutboxMessage(event)" class="flex gap-1.5">
+		<span class="text-xs text-indigo-400 font-mono flex items-center">&gt;</span>
+		<input type="text" id="shoutboxInput" placeholder="Message..." maxlength="500" autocomplete="off"
+			class="flex-1 px-2 py-1 rounded border border-gray-700 bg-gray-800 text-gray-100 text-xs font-mono focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none">
+		<button type="submit" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-medium transition-colors">Envoyer</button>
+	</form>
+</div>
+
+<script>
+var knownIds = new Set();
+var lastTimestamp = '';
+var autoScroll = true;
+var tabVisible = true;
+var audioCtx = null;
+
+document.addEventListener('visibilitychange', function() { tabVisible = !document.hidden; });
+
+function beep() {
+	try {
+		if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+		var osc = audioCtx.createOscillator();
+		var gain = audioCtx.createGain();
+		osc.connect(gain);
+		gain.connect(audioCtx.destination);
+		osc.frequency.value = 660;
+		osc.type = 'sine';
+		gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+		gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+		osc.start(audioCtx.currentTime);
+		osc.stop(audioCtx.currentTime + 0.3);
+	} catch(e) {}
+}
+
+var COLORS = ['#6366f1','#8b5cf6','#ec4899','#14b8a6','#f59e0b','#3b82f6','#10b981','#ef4444','#06b6d4','#84cc16'];
+var colorMap = {};
+function userColor(name) {
+	if (!colorMap[name]) {
+		var h = 0;
+		for (var i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+		colorMap[name] = COLORS[Math.abs(h) % COLORS.length];
+	}
+	return colorMap[name];
+}
+
+function esc(t) { var d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+
+function fmtTime(iso) {
+	var d = new Date(iso);
+	return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+}
+
+function addItem(item) {
+	if (knownIds.has(item.id)) return;
+	knownIds.add(item.id);
+	var display = document.getElementById('shoutboxDisplay');
+	var ph = document.getElementById('shoutboxPlaceholder');
+	if (ph) ph.remove();
+
+	var line = document.createElement('div');
+	line.className = 'py-0.5 leading-relaxed';
+	var time = '<span class="text-gray-500">[' + fmtTime(item.created_at) + ']</span> ';
+
+	if (item.type === 'message') {
+		var c = userColor(item.author);
+		line.innerHTML = time + '<span style="color:' + c + '" class="font-semibold">&lt;' + esc(item.author) + '&gt;</span> <span class="text-gray-200">' + esc(item.text) + '</span>';
+	} else {
+		var au = (item.action || '').toUpperCase();
+		var sc = 'text-red-400';
+		if (['timeout','clean','permit'].indexOf(item.action) >= 0) sc = 'text-orange-400';
+		if (['subon','suboff','emoteon','emoteoff','follon','folloff'].indexOf(item.action) >= 0) sc = 'text-blue-400';
+		if (item.action === 'unban') sc = 'text-green-400';
+		var txt = '*** ' + au;
+		if (item.moderator) txt += ' par ' + item.moderator;
+		if (item.target) txt += ' \u2192 ' + item.target;
+		if (item.details && item.details !== '-') txt += ' (' + item.details + ')';
+		txt += ' ***';
+		line.innerHTML = time + '<span class="' + sc + ' font-semibold">' + esc(txt) + '</span>';
+	}
+
+	display.appendChild(line);
+	if (!tabVisible) beep();
+	while (display.children.length > 200) display.removeChild(display.firstChild);
+	if (autoScroll) display.scrollTop = display.scrollHeight;
+}
+
+function updateOnline(users) {
+	var list = document.getElementById('shoutboxOnlineList');
+	var countEl = document.getElementById('onlineCountText');
+	if (countEl) countEl.textContent = (users ? users.length : 0) + ' en ligne';
+	if (!list) return;
+	if (!users || users.length === 0) { list.innerHTML = '<div class="text-xs text-gray-600 italic">---</div>'; return; }
+	list.innerHTML = '';
+	users.forEach(function(u) {
+		var el = document.createElement('div');
+		el.className = 'flex items-center gap-1.5 text-xs text-gray-300';
+		el.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0"></span>' + esc(u);
+		list.appendChild(el);
+	});
+}
+
+function poll() {
+	var url = '{{ url_for("shoutbox_messages") }}';
+	if (lastTimestamp) url += '?since=' + encodeURIComponent(lastTimestamp);
+	fetch(url)
+		.then(function(r) { return r.json(); })
+		.then(function(data) {
+			if (data.items && data.items.length > 0) data.items.forEach(addItem);
+			if (data.timestamp) lastTimestamp = data.timestamp;
+			if (data.online_users) updateOnline(data.online_users);
+			var cnt = document.getElementById('shoutboxCount');
+			if (cnt) cnt.textContent = '(' + knownIds.size + ')';
+		})
+		.catch(function(e) { console.error('Poll error:', e); });
+}
+
+function heartbeat() {
+	fetch('{{ url_for("shoutbox_heartbeat") }}', { method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}' })
+		.then(function(r) { return r.json(); })
+		.then(function(d) { updateOnline(d.online_users); })
+		.catch(function() {});
+}
+
+function sendShoutboxMessage(event) {
+	event.preventDefault();
+	var input = document.getElementById('shoutboxInput');
+	var msg = input.value.trim();
+	if (!msg) return;
+	var btn = event.target.querySelector('button[type="submit"]');
+	btn.disabled = true;
+	fetch('{{ url_for("shoutbox_send") }}', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({message: msg}) })
+		.then(function(r) { return r.json(); })
+		.then(function(d) { if (d.success) { input.value = ''; poll(); } })
+		.catch(function() {})
+		.finally(function() { btn.disabled = false; });
+}
+
+document.getElementById('shoutboxDisplay').addEventListener('scroll', function() {
+	autoScroll = this.scrollHeight - this.scrollTop <= this.clientHeight + 30;
+});
+
+setInterval(poll, 3000);
+poll();
+setInterval(heartbeat, 10000);
+heartbeat();
+</script>
+</body>
+</html>

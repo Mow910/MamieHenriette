@@ -297,10 +297,24 @@
 				<span>Shoutbox Modos</span>
 				<span class="text-xs text-gray-400" id="shoutboxCount"></span>
 			</div>
-			<button onclick="clearShoutbox()" class="text-xs text-red-500 hover:text-red-600" title="Effacer">Effacer</button>
+			<div class="flex items-center gap-2">
+				<button onclick="openShoutboxPopout()" class="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1" title="Ouvrir en popup">
+					<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+					Popout
+				</button>
+				<button onclick="clearShoutbox()" class="text-xs text-red-500 hover:text-red-600" title="Effacer">Effacer</button>
+			</div>
 		</div>
-		<div class="flex-1 overflow-y-auto font-mono text-xs p-2 bg-gray-950 dark:bg-gray-950 bg-opacity-95" id="shoutboxDisplay" style="scrollbar-width: thin;">
-			<div class="text-gray-500 text-center py-4" id="shoutboxPlaceholder">Aucun message</div>
+		<div class="flex flex-1 overflow-hidden">
+			<div class="flex-1 overflow-y-auto font-mono text-xs p-2 bg-gray-950 dark:bg-gray-950 bg-opacity-95" id="shoutboxDisplay" style="scrollbar-width: thin;">
+				<div class="text-gray-500 text-center py-4" id="shoutboxPlaceholder">Aucun message</div>
+			</div>
+			<div class="w-28 border-l border-gray-700 bg-gray-900 p-2 overflow-y-auto" style="scrollbar-width: thin;">
+				<div class="text-xs text-gray-400 font-semibold mb-1.5">En ligne</div>
+				<div id="shoutboxOnlineList" class="space-y-1">
+					<div class="text-xs text-gray-600 italic">---</div>
+				</div>
+			</div>
 		</div>
 		<div class="border-t border-gray-200 dark:border-gray-700 p-2 bg-gray-50 dark:bg-gray-800">
 			<form onsubmit="sendShoutboxMessage(event)" class="flex gap-1.5">
@@ -974,6 +988,33 @@ function addShoutboxItem(item) {
 	if (shoutboxAutoScroll) display.scrollTop = display.scrollHeight;
 }
 
+function updateOnlineList(users) {
+	var list = document.getElementById('shoutboxOnlineList');
+	if (!list) return;
+	if (!users || users.length === 0) {
+		list.innerHTML = '<div class="text-xs text-gray-600 italic">---</div>';
+		return;
+	}
+	list.innerHTML = '';
+	users.forEach(function(u) {
+		var el = document.createElement('div');
+		el.className = 'flex items-center gap-1.5 text-xs text-gray-300';
+		el.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0"></span>' + escapeHtml(u);
+		list.appendChild(el);
+	});
+}
+
+function shoutboxHeartbeat() {
+	fetch('{{ url_for("shoutbox_heartbeat") }}', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: '{}'
+	})
+	.then(function(r) { return r.json(); })
+	.then(function(data) { updateOnlineList(data.online_users); })
+	.catch(function() {});
+}
+
 function fetchShoutbox() {
 	var url = '{{ url_for("shoutbox_messages") }}';
 	if (shoutboxLastTimestamp) url += '?since=' + encodeURIComponent(shoutboxLastTimestamp);
@@ -985,10 +1026,15 @@ function fetchShoutbox() {
 				data.items.forEach(addShoutboxItem);
 			}
 			if (data.timestamp) shoutboxLastTimestamp = data.timestamp;
+			if (data.online_users) updateOnlineList(data.online_users);
 			var cnt = document.getElementById('shoutboxCount');
 			if (cnt) cnt.textContent = '(' + shoutboxKnownIds.size + ')';
 		})
 		.catch(function(e) { console.error('Shoutbox error:', e); });
+}
+
+function openShoutboxPopout() {
+	window.open('{{ url_for("shoutbox_popout") }}', 'shoutbox_popout', 'width=520,height=420,resizable=yes,scrollbars=no,menubar=no,toolbar=no,location=no,status=no');
 }
 
 function sendShoutboxMessage(event) {
@@ -1040,5 +1086,7 @@ document.getElementById('shoutboxDisplay').addEventListener('scroll', function()
 
 setInterval(fetchShoutbox, 3000);
 fetchShoutbox();
+setInterval(shoutboxHeartbeat, 10000);
+shoutboxHeartbeat();
 </script>
 {% endblock %}

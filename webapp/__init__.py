@@ -16,6 +16,7 @@ webapp.config["BOT_STATUS"] = {
 	"twitch_is_live": False,
 	"twitch_viewer_count": 0,
 	"twitch_chat_messages": [],  # Derniers messages du chat (max 100)
+	"shoutbox_heartbeats": {},   # {"username": datetime} — présence des modos
 }
 
 login_manager = LoginManager()
