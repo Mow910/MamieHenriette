@@ -311,7 +311,16 @@
 				<span>Shoutbox Modos</span>
 				<span class="text-xs text-gray-400" id="shoutboxCount"></span>
 			</div>
-			<div class="flex items-center gap-2">
+			<div class="flex items-center gap-3">
+				<div class="flex items-center gap-1.5">
+					<button onclick="shoutboxFontSize(-1)" class="text-gray-400 hover:text-white text-xs leading-none px-1" title="Réduire la police">A-</button>
+					<span class="text-gray-500 text-xs" id="shoutboxFontLabel">12</span>
+					<button onclick="shoutboxFontSize(1)" class="text-gray-400 hover:text-white text-xs leading-none px-1" title="Agrandir la police">A+</button>
+				</div>
+				<button onclick="toggleShoutboxSound()" id="shoutboxSoundBtn" class="text-xs flex items-center gap-1 text-green-400 hover:text-green-300" title="Son activé">
+					<svg class="w-3.5 h-3.5" id="shoutboxSoundIcon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072M17.95 6.05a8 8 0 010 11.9M11 5L6 9H2v6h4l5 4V5z"></path></svg>
+					<span id="shoutboxSoundLabel">Son</span>
+				</button>
 				<button onclick="openShoutboxPopout()" class="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1" title="Ouvrir en popup">
 					<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
 					Popout
@@ -985,12 +994,41 @@ var shoutboxLastTimestamp = '';
 var shoutboxAutoScroll = true;
 var shoutboxTabVisible = true;
 var shoutboxAudioCtx = null;
+var shoutboxSoundEnabled = localStorage.getItem('shoutbox_sound') !== 'off';
+var shoutboxFontSizePx = parseInt(localStorage.getItem('shoutbox_fontsize')) || 12;
 
 document.addEventListener('visibilitychange', function() {
 	shoutboxTabVisible = !document.hidden;
 });
 
+function shoutboxApplyFontSize() {
+	var display = document.getElementById('shoutboxDisplay');
+	if (display) display.style.fontSize = shoutboxFontSizePx + 'px';
+	var label = document.getElementById('shoutboxFontLabel');
+	if (label) label.textContent = shoutboxFontSizePx;
+	localStorage.setItem('shoutbox_fontsize', shoutboxFontSizePx);
+}
+
+function shoutboxFontSize(delta) {
+	shoutboxFontSizePx = Math.max(8, Math.min(20, shoutboxFontSizePx + delta));
+	shoutboxApplyFontSize();
+}
+
+function shoutboxUpdateSoundUI() {
+	var btn = document.getElementById('shoutboxSoundBtn');
+	if (!btn) return;
+	btn.className = 'text-xs flex items-center gap-1 ' + (shoutboxSoundEnabled ? 'text-green-400 hover:text-green-300' : 'text-red-400 hover:text-red-300');
+	btn.title = shoutboxSoundEnabled ? 'Son activé' : 'Son désactivé';
+}
+
+function toggleShoutboxSound() {
+	shoutboxSoundEnabled = !shoutboxSoundEnabled;
+	localStorage.setItem('shoutbox_sound', shoutboxSoundEnabled ? 'on' : 'off');
+	shoutboxUpdateSoundUI();
+}
+
 function shoutboxBeep() {
+	if (!shoutboxSoundEnabled) return;
 	try {
 		if (!shoutboxAudioCtx) shoutboxAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
 		var osc = shoutboxAudioCtx.createOscillator();
@@ -1186,6 +1224,8 @@ document.getElementById('shoutboxDisplay').addEventListener('scroll', function()
 	shoutboxAutoScroll = this.scrollHeight - this.scrollTop <= this.clientHeight + 30;
 });
 
+shoutboxApplyFontSize();
+shoutboxUpdateSoundUI();
 setInterval(fetchShoutbox, 3000);
 fetchShoutbox();
 setInterval(shoutboxHeartbeat, 10000);
