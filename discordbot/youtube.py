@@ -218,7 +218,8 @@ async def _sendMessage(notification: YouTubeNotification, message: str, video_ur
 			embed.description = embed_description
 		
 		author_name = _format_embed_text(notification.embed_author_name, channel_name, video_title, video_url, video_id, thumbnail, published_at, is_short) if notification.embed_author_name else channel_name
-		author_icon = notification.embed_author_icon if notification.embed_author_icon else "https://www.youtube.com/img/desktop/yt_1200.png"
+		author_icon_raw = (notification.embed_author_icon or "").strip()
+		author_icon = author_icon_raw if author_icon_raw.startswith(("http://", "https://")) else "https://www.youtube.com/img/desktop/yt_1200.png"
 		embed.set_author(name=author_name, icon_url=author_icon)
 		
 		if notification.embed_thumbnail and thumbnail:

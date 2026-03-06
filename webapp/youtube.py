@@ -112,7 +112,7 @@ def addYouTube():
 		embed_color=embed_color,
 		embed_footer=request.form.get('embed_footer') or None,
 		embed_author_name=request.form.get('embed_author_name') or None,
-		embed_author_icon=request.form.get('embed_author_icon') or None,
+		embed_author_icon=(request.form.get('embed_author_icon') or '').strip() or None,
 		embed_thumbnail=request.form.get('embed_thumbnail') == 'on',
 		embed_image=request.form.get('embed_image') == 'on'
 	)
@@ -177,7 +177,7 @@ def submitEditYouTube(id):
 	notification.embed_color = embed_color
 	notification.embed_footer = request.form.get('embed_footer') or None
 	notification.embed_author_name = request.form.get('embed_author_name') or None
-	notification.embed_author_icon = request.form.get('embed_author_icon') or None
+	notification.embed_author_icon = (request.form.get('embed_author_icon') or '').strip() or None
 	notification.embed_thumbnail = request.form.get('embed_thumbnail') == 'on'
 	notification.embed_image = request.form.get('embed_image') == 'on'
 	db.session.commit()
