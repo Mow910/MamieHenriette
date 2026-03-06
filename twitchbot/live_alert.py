@@ -67,9 +67,15 @@ async def checkOnlineStreamer(twitch: Twitch) :
 		if main_stream:
 			webapp.config["BOT_STATUS"]["twitch_is_live"] = True
 			webapp.config["BOT_STATUS"]["twitch_viewer_count"] = getattr(main_stream, 'viewer_count', 0)
+			webapp.config["BOT_STATUS"]["twitch_stream_title"] = getattr(main_stream, 'title', '') or ''
+			webapp.config["BOT_STATUS"]["twitch_game_name"] = getattr(main_stream, 'game_name', '') or ''
+			webapp.config["BOT_STATUS"]["twitch_started_at"] = main_stream.started_at.isoformat() if getattr(main_stream, 'started_at', None) else None
 		else:
 			webapp.config["BOT_STATUS"]["twitch_is_live"] = False
 			webapp.config["BOT_STATUS"]["twitch_viewer_count"] = 0
+			webapp.config["BOT_STATUS"]["twitch_stream_title"] = ""
+			webapp.config["BOT_STATUS"]["twitch_game_name"] = ""
+			webapp.config["BOT_STATUS"]["twitch_started_at"] = None
 		
 		# Premier check : synchronisation sans notification
 		if _live_alert_first_check:

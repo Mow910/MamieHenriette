@@ -15,6 +15,9 @@ webapp.config["BOT_STATUS"] = {
 	"twitch_channel_name": None,
 	"twitch_is_live": False,
 	"twitch_viewer_count": 0,
+	"twitch_stream_title": "",
+	"twitch_game_name": "",
+	"twitch_started_at": None,
 	"twitch_chat_messages": [],  # Derniers messages du chat (max 100)
 	"shoutbox_heartbeats": {},   # {"username": datetime} — présence des modos
 }

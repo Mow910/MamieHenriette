@@ -104,9 +104,43 @@ async def _handleCustomCommand(msg: ChatMessage):
 		if commande:
 			permission = commande.twitch_permission or 'viewer'
 			if not _user_has_twitch_permission(msg, permission):
-				return  # Pas de réponse = l'utilisateur n'a pas la permission
-			response = commande.response.replace('{user}', msg.user.name)
+				return
+			response = _replace_command_variables(commande.response, msg)
 			await msg.reply(response)
+
+
+def _replace_command_variables(text: str, msg: ChatMessage) -> str:
+	"""Remplace les variables de template dans la réponse d'une commande."""
+	from datetime import datetime
+
+	result = text
+	result = result.replace('{user}', msg.user.name)
+	result = result.replace('{username}', msg.user.name)
+	result = result.replace('{channel}', msg.room.name)
+
+	bot_status = webapp.config.get("BOT_STATUS", {})
+	result = result.replace('{title}', bot_status.get("twitch_stream_title", ""))
+	result = result.replace('{game}', bot_status.get("twitch_game_name", ""))
+	result = result.replace('{viewers}', str(bot_status.get("twitch_viewer_count", 0)))
+
+	uptime_str = "hors ligne"
+	started_at_str = bot_status.get("twitch_started_at")
+	if started_at_str and bot_status.get("twitch_is_live", False):
+		try:
+			started_at = datetime.fromisoformat(started_at_str)
+			delta = datetime.now(started_at.tzinfo) - started_at
+			total_seconds = int(delta.total_seconds())
+			hours, remainder = divmod(max(0, total_seconds), 3600)
+			minutes, _ = divmod(remainder, 60)
+			if hours > 0:
+				uptime_str = f"{hours}h {minutes:02d}min"
+			else:
+				uptime_str = f"{minutes}min"
+		except (ValueError, TypeError):
+			pass
+	result = result.replace('{uptime}', uptime_str)
+
+	return result
 
 
 async def _helloCommand(msg: ChatMessage):

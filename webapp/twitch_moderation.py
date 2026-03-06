@@ -136,6 +136,9 @@ def twitch_moderation():
     bot_status = webapp.config.get("BOT_STATUS", {})
     is_live = bot_status.get("twitch_is_live", False)
     viewer_count = bot_status.get("twitch_viewer_count", 0)
+    stream_title = bot_status.get("twitch_stream_title", "")
+    game_name = bot_status.get("twitch_game_name", "")
+    started_at = bot_status.get("twitch_started_at")
     
     return render_template(
         "twitch-moderation.html",
@@ -149,6 +152,9 @@ def twitch_moderation():
         banned_words=banned_words,
         is_live=is_live,
         viewer_count=viewer_count,
+        stream_title=stream_title,
+        game_name=game_name,
+        started_at=started_at,
     )
 
 @webapp.route("/twitch-moderation/logs/clear")
@@ -308,6 +314,20 @@ def get_twitch_messages():
     """Retourne les derniers messages du chat Twitch"""
     messages = webapp.config["BOT_STATUS"].get("twitch_chat_messages", [])
     return jsonify({"messages": messages})
+
+
+@webapp.route("/twitch-moderation/stream-info")
+@require_page("twitch_moderation")
+def twitch_stream_info():
+    """Retourne les infos du stream en cours pour le polling dynamique."""
+    bot_status = webapp.config.get("BOT_STATUS", {})
+    return jsonify({
+        "is_live": bot_status.get("twitch_is_live", False),
+        "viewer_count": bot_status.get("twitch_viewer_count", 0),
+        "title": bot_status.get("twitch_stream_title", ""),
+        "game_name": bot_status.get("twitch_game_name", ""),
+        "started_at": bot_status.get("twitch_started_at"),
+    })
 
 @webapp.route("/twitch-moderation/logs/poll")
 @require_page("twitch_moderation")
