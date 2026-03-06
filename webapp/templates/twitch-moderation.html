@@ -979,6 +979,7 @@ document.addEventListener('keydown', function(e) {
 // =============================
 // Shoutbox modérateurs (IRC)
 // =============================
+var shoutboxCurrentUser = '{{ current_user.username }}';
 var shoutboxKnownIds = new Set();
 var shoutboxLastTimestamp = '';
 var shoutboxAutoScroll = true;
@@ -1025,6 +1026,23 @@ function shoutboxTime(isoStr) {
 	return d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
 }
 
+function shoutboxMention(username) {
+	var input = document.getElementById('shoutboxInput');
+	var val = input.value;
+	var mention = '@' + username + ' ';
+	if (val && !val.endsWith(' ')) mention = ' ' + mention;
+	input.value = val + mention;
+	input.focus();
+}
+
+function shoutboxRenderText(text) {
+	var escaped = escapeHtml(text);
+	var isMentioned = shoutboxCurrentUser && text.toLowerCase().indexOf('@' + shoutboxCurrentUser.toLowerCase()) >= 0;
+	escaped = escaped.replace(/@(\w+)/g, '<span class="text-indigo-400 font-semibold">@$1</span>');
+	if (isMentioned) return { html: escaped, mentioned: true };
+	return { html: escaped, mentioned: false };
+}
+
 function addShoutboxItem(item) {
 	if (shoutboxKnownIds.has(item.id)) return;
 	shoutboxKnownIds.add(item.id);
@@ -1034,15 +1052,19 @@ function addShoutboxItem(item) {
 	if (ph) ph.remove();
 
 	var line = document.createElement('div');
-	line.className = 'py-0.5 leading-relaxed';
+	line.className = 'py-0.5 leading-relaxed rounded px-1';
 
 	var time = '<span class="text-gray-500">[' + shoutboxTime(item.created_at) + ']</span> ';
 
 	if (item.type === 'message') {
 		var color = shoutboxColor(item.author);
+		var rendered = shoutboxRenderText(item.text);
 		line.innerHTML = time +
-			'<span style="color:' + color + '" class="font-semibold">&lt;' + escapeHtml(item.author) + '&gt;</span> ' +
-			'<span class="text-gray-200">' + escapeHtml(item.text) + '</span>';
+			'<span style="color:' + color + '" class="font-semibold cursor-pointer hover:underline" onclick="shoutboxMention(\'' + escapeHtml(item.author).replace(/'/g, "\\'") + '\')">&lt;' + escapeHtml(item.author) + '&gt;</span> ' +
+			'<span class="text-gray-200">' + rendered.html + '</span>';
+		if (rendered.mentioned) {
+			line.className += ' bg-red-900/40 font-bold';
+		}
 	} else {
 		var actionUpper = (item.action || '').toUpperCase();
 		var sanctionColor = 'text-red-400';
@@ -1052,7 +1074,7 @@ function addShoutboxItem(item) {
 
 		var text = '*** ' + actionUpper;
 		if (item.moderator) text += ' par ' + item.moderator;
-		if (item.target) text += ' → ' + item.target;
+		if (item.target) text += ' \u2192 ' + item.target;
 		if (item.details && item.details !== '-') text += ' (' + item.details + ')';
 		text += ' ***';
 
@@ -1077,7 +1099,8 @@ function updateOnlineList(users) {
 	list.innerHTML = '';
 	users.forEach(function(u) {
 		var el = document.createElement('div');
-		el.className = 'flex items-center gap-1.5 text-xs text-gray-300';
+		el.className = 'flex items-center gap-1.5 text-xs text-gray-300 cursor-pointer hover:text-white';
+		el.onclick = function() { shoutboxMention(u); };
 		el.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0"></span>' + escapeHtml(u);
 		list.appendChild(el);
 	});

@@ -85,11 +85,29 @@ function userColor(name) {
 	return colorMap[name];
 }
 
+var currentUser = '{{ current_user.username }}';
+
 function esc(t) { var d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
 
 function fmtTime(iso) {
 	var d = new Date(iso);
 	return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+}
+
+function mentionUser(username) {
+	var input = document.getElementById('shoutboxInput');
+	var val = input.value;
+	var mention = '@' + username + ' ';
+	if (val && !val.endsWith(' ')) mention = ' ' + mention;
+	input.value = val + mention;
+	input.focus();
+}
+
+function renderText(text) {
+	var escaped = esc(text);
+	var mentioned = currentUser && text.toLowerCase().indexOf('@' + currentUser.toLowerCase()) >= 0;
+	escaped = escaped.replace(/@(\w+)/g, '<span class="text-indigo-400 font-semibold">@$1</span>');
+	return { html: escaped, mentioned: mentioned };
 }
 
 function addItem(item) {
@@ -100,12 +118,16 @@ function addItem(item) {
 	if (ph) ph.remove();
 
 	var line = document.createElement('div');
-	line.className = 'py-0.5 leading-relaxed';
+	line.className = 'py-0.5 leading-relaxed rounded px-1';
 	var time = '<span class="text-gray-500">[' + fmtTime(item.created_at) + ']</span> ';
 
 	if (item.type === 'message') {
 		var c = userColor(item.author);
-		line.innerHTML = time + '<span style="color:' + c + '" class="font-semibold">&lt;' + esc(item.author) + '&gt;</span> <span class="text-gray-200">' + esc(item.text) + '</span>';
+		var rendered = renderText(item.text);
+		line.innerHTML = time + '<span style="color:' + c + '" class="font-semibold cursor-pointer hover:underline" onclick="mentionUser(\'' + esc(item.author).replace(/'/g, "\\'") + '\')">&lt;' + esc(item.author) + '&gt;</span> <span class="text-gray-200">' + rendered.html + '</span>';
+		if (rendered.mentioned) {
+			line.className += ' bg-red-900/40 font-bold';
+		}
 	} else {
 		var au = (item.action || '').toUpperCase();
 		var sc = 'text-red-400';
@@ -135,7 +157,8 @@ function updateOnline(users) {
 	list.innerHTML = '';
 	users.forEach(function(u) {
 		var el = document.createElement('div');
-		el.className = 'flex items-center gap-1.5 text-xs text-gray-300';
+		el.className = 'flex items-center gap-1.5 text-xs text-gray-300 cursor-pointer hover:text-white';
+		el.onclick = function() { mentionUser(u); };
 		el.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0"></span>' + esc(u);
 		list.appendChild(el);
 	});
