@@ -26,6 +26,7 @@ from discordbot.moderation import (
 	transfer_message_context_menu
 )
 from discordbot.welcome import sendWelcomeMessage, sendLeaveMessage, updateInviteCache
+from discordbot.patreon import checkPatreonPosts
 from discordbot.youtube import checkYouTubeVideos
 from discordbot.auto_rooms import on_voice_state_update_auto_rooms, on_raw_reaction_add_auto_rooms, on_message_auto_rooms, cleanup_orphaned_auto_rooms
 from protondb import searhProtonDb
@@ -76,6 +77,7 @@ class DiscordBot(discord.Client):
 		self.loop.create_task(self.updateHumbleBundle())
 		self.loop.create_task(self.updateYouTube())
 		self.loop.create_task(self.updateFreeLoot())
+		self.loop.create_task(self.updatePatreon())
 
 	async def on_disconnect(self):
 		webapp.config["BOT_STATUS"]["discord_connected"] = False
@@ -104,6 +106,11 @@ class DiscordBot(discord.Client):
 		while not self.is_closed():
 			await checkFreeLootAndNotify(self)
 			await asyncio.sleep(30*60)
+
+	async def updatePatreon(self):
+		while not self.is_closed():
+			await checkPatreonPosts(self)
+			await asyncio.sleep(10*60)
 
 	def getAllTextChannel(self) -> list[TextChannel]:
 		channels = []

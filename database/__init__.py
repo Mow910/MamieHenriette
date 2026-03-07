@@ -166,6 +166,23 @@ def _doAddColumnMigrations(cursor: Cursor):
 			except Exception as e:
 				logging.warning(f"Seed twitch_event_notification {ev}: {e}")
 
+	# Colonnes supplémentaires pour patreon_post (historique + statut notification)
+	if _tableExists('patreon_post', cursor):
+		patreon_columns = [
+			('title', 'VARCHAR(512)'),
+			('link', 'VARCHAR(1024)'),
+			('description', 'TEXT'),
+			('published_at', 'VARCHAR(64)'),
+			('notified', 'BOOLEAN NOT NULL DEFAULT 0'),
+		]
+		for col_name, col_type in patreon_columns:
+			if not _tableHaveColumn('patreon_post', col_name, cursor):
+				try:
+					cursor.execute(f'ALTER TABLE patreon_post ADD COLUMN {col_name} {col_type}')
+					logging.info(f"Colonne {col_name} ajoutée à patreon_post")
+				except Exception as e:
+					logging.warning(f"Colonne patreon_post.{col_name}: {e}")
+
 	# Table webapp_user (auth)
 	if not _tableExists('webapp_user', cursor):
 		try:
@@ -251,6 +268,7 @@ def _doSeedAuth(cursor: Cursor):
 		("youtube", 1, 2),
 		("protondb", 1, 2),
 		("freeloot", 1, 2),
+		("patreon", 1, 2),
 		("moderation", 1, 2),
 		("users", 5, 5),
 		("settings", 5, 5),

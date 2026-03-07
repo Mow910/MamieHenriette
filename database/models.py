@@ -228,6 +228,16 @@ class TwitchBannedWord(db.Model):
 	created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class PatreonPost(db.Model):
+	__tablename__ = 'patreon_post'
+	guid = db.Column(db.String(512), primary_key=True)
+	title = db.Column(db.String(512))
+	link = db.Column(db.String(1024))
+	description = db.Column(db.Text)
+	published_at = db.Column(db.String(64))
+	notified = db.Column(db.Boolean, default=False)
+
+
 class ModShoutboxMessage(db.Model):
 	__tablename__ = 'mod_shoutbox_message'
 	id = db.Column(db.Integer, primary_key=True)

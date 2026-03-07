@@ -199,6 +199,15 @@ CREATE TABLE IF NOT EXISTS `twitch_event_notification` (
 	last_clip_id VARCHAR(128) NULL
 );
 
+CREATE TABLE IF NOT EXISTS `patreon_post` (
+	guid VARCHAR(512) PRIMARY KEY,
+	title VARCHAR(512),
+	link VARCHAR(1024),
+	description TEXT,
+	published_at VARCHAR(64),
+	notified BOOLEAN NOT NULL DEFAULT FALSE
+);
+
 CREATE TABLE IF NOT EXISTS `mod_shoutbox_message` (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	`author` VARCHAR(64) NOT NULL,
