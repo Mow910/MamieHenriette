@@ -27,7 +27,7 @@ from discordbot.moderation import (
 )
 from discordbot.welcome import sendWelcomeMessage, sendLeaveMessage, updateInviteCache
 from discordbot.youtube import checkYouTubeVideos
-from discordbot.auto_rooms import on_voice_state_update_auto_rooms, on_raw_reaction_add_auto_rooms, on_message_auto_rooms
+from discordbot.auto_rooms import on_voice_state_update_auto_rooms, on_raw_reaction_add_auto_rooms, on_message_auto_rooms, cleanup_orphaned_auto_rooms
 from protondb import searhProtonDb
 
 class DiscordBot(discord.Client):
@@ -69,6 +69,8 @@ class DiscordBot(discord.Client):
 		
 		for guild in self.guilds:
 			await updateInviteCache(guild)
+		
+		await cleanup_orphaned_auto_rooms(self)
 		
 		self.loop.create_task(self.updateStatus())
 		self.loop.create_task(self.updateHumbleBundle())

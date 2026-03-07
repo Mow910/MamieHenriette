@@ -1,5 +1,6 @@
 # discordbot/auto_rooms.py — Auto rooms : message et réactions dans la partie texte du salon vocal (onglet Discussion)
 import logging
+import re
 from typing import Optional
 
 import discord
@@ -355,6 +356,39 @@ async def send_control_panel(bot: discord.Client, guild_id: int, owner: Member, 
 		return None
 
 
+_AUTO_ROOM_NAME_PATTERN = re.compile(r"^Salon de .+ [🔓🔒🔐]$")
+
+
+async def cleanup_orphaned_auto_rooms(bot: discord.Client):
+	"""Supprime les auto rooms orphelines (vides) au démarrage du bot."""
+	config = ConfigurationHelper()
+	if not config.getValue("auto_rooms_enable"):
+		return
+	trigger_channel_id = config.getIntValue("auto_rooms_channel_id")
+	if not trigger_channel_id:
+		return
+
+	deleted = 0
+	for guild in bot.guilds:
+		trigger_channel = guild.get_channel(trigger_channel_id)
+		if not trigger_channel or not trigger_channel.category:
+			continue
+		category = trigger_channel.category
+		for channel in list(category.voice_channels):
+			if channel.id == trigger_channel_id:
+				continue
+			if not _AUTO_ROOM_NAME_PATTERN.match(channel.name):
+				continue
+			if len(channel.members) == 0:
+				try:
+					await channel.delete(reason="Nettoyage auto room orpheline au démarrage")
+					deleted += 1
+				except discord.HTTPException:
+					pass
+	if deleted > 0:
+		logging.info(f"Nettoyage auto rooms : {deleted} salon(s) orphelin(s) supprimé(s)")
+
+
 async def on_voice_state_update_auto_rooms(bot: discord.Client, member: Member, before: VoiceState, after: VoiceState):
 	config = ConfigurationHelper()
 	if not config.getValue("auto_rooms_enable"):
@@ -366,8 +400,18 @@ async def on_voice_state_update_auto_rooms(bot: discord.Client, member: Member, 
 	guild = member.guild
 
 	if after.channel and after.channel.id == trigger_channel_id:
+		existing_room = _get_room(guild.id, member.id)
+		if existing_room:
+			old_channel = bot.get_channel(existing_room["voice_channel_id"])
+			_del_room(guild.id, member.id)
+			if old_channel and isinstance(old_channel, discord.VoiceChannel):
+				if len(old_channel.members) == 0:
+					try:
+						await old_channel.delete(reason="Auto room remplacée")
+					except discord.HTTPException:
+						pass
+
 		category = after.channel.category
-		# Nom du salon avec statut (cadenas) à la création
 		channel_name = f"Salon de {member.display_name} {_status_emoji('open')}"
 		try:
 			new_channel = await guild.create_voice_channel(
@@ -396,7 +440,7 @@ async def on_voice_state_update_auto_rooms(bot: discord.Client, member: Member, 
 		except discord.HTTPException as e:
 			logging.error(f"Erreur création auto room : {e}")
 
-	if before.channel and before.channel.id != trigger_channel_id:
+	if before.channel and before.channel != after.channel and before.channel.id != trigger_channel_id:
 		result = _find_room_by_channel(guild.id, before.channel.id)
 		if result:
 			owner_id, room = result
