@@ -121,19 +121,21 @@ async def _checkChannelVideos(notification: YouTubeNotification, is_first_check:
 		
 		videos.sort(key=lambda x: x[1]['published'], reverse=True)
 		
+		# Enregistrer toutes les vidéos du flux dans l'historique (les doublons sont ignorés)
+		for vid, vdata in videos:
+			_save_video_history(notification.id, vid, vdata, notified=False)
+		
 		if videos:
 			latest_video_id, latest_video = videos[0]
 			
 			if is_first_check:
 				if not notification.last_video_id or notification.last_video_id != latest_video_id:
 					logger.info(f"YouTube: synchronisation initiale pour {channel_id}, dernière vidéo: {latest_video_id}")
-					_save_video_history(notification.id, latest_video_id, latest_video, notified=False)
 					notification.last_video_id = latest_video_id
 					db.session.commit()
 				return
 			
 			if not notification.last_video_id:
-				_save_video_history(notification.id, latest_video_id, latest_video, notified=False)
 				notification.last_video_id = latest_video_id
 				db.session.commit()
 				return
@@ -144,13 +146,10 @@ async def _checkChannelVideos(notification: YouTubeNotification, is_first_check:
 				success = await _notifyVideo(embed_config, latest_video, latest_video_id)
 				if success:
 					_save_video_history(notification.id, latest_video_id, latest_video, notified=True)
-					notification.last_video_id = latest_video_id
-					db.session.commit()
 				else:
-					_save_video_history(notification.id, latest_video_id, latest_video, notified=False)
-					notification.last_video_id = latest_video_id
-					db.session.commit()
 					logger.warning(f"Notification échouée pour {latest_video_id}, vidéo enregistrée comme non notifiée")
+				notification.last_video_id = latest_video_id
+				db.session.commit()
 				
 	except Exception as e:
 		logger.error(f"Erreur lors de la vérification des vidéos: {e}")
