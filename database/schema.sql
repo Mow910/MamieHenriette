@@ -178,6 +178,21 @@ CREATE TABLE IF NOT EXISTS `webapp_page_permission` (
 	description VARCHAR(256) NULL
 );
 
+CREATE TABLE IF NOT EXISTS `youtube_video_history` (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	`notification_id` INTEGER NOT NULL,
+	`video_id` VARCHAR(128) NOT NULL,
+	`title` VARCHAR(512),
+	`url` VARCHAR(512),
+	`channel_name` VARCHAR(256),
+	`thumbnail` VARCHAR(512),
+	`published_at` VARCHAR(64),
+	`is_short` BOOLEAN NOT NULL DEFAULT FALSE,
+	`notified` BOOLEAN NOT NULL DEFAULT FALSE,
+	`detected_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	FOREIGN KEY (`notification_id`) REFERENCES `youtube_notification`(`id`) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS `freeloot_entry` (
 	entry_id VARCHAR(256) PRIMARY KEY
 );

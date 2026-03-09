@@ -195,6 +195,21 @@ class YouTubeNotification(db.Model):
 	embed_image = db.Column(db.Boolean, default=True)
 
 
+class YouTubeVideoHistory(db.Model):
+	__tablename__ = 'youtube_video_history'
+	id = db.Column(db.Integer, primary_key=True)
+	notification_id = db.Column(db.Integer, db.ForeignKey('youtube_notification.id'), nullable=False)
+	video_id = db.Column(db.String(128), nullable=False)
+	title = db.Column(db.String(512))
+	url = db.Column(db.String(512))
+	channel_name = db.Column(db.String(256))
+	thumbnail = db.Column(db.String(512))
+	published_at = db.Column(db.String(64))
+	is_short = db.Column(db.Boolean, default=False)
+	notified = db.Column(db.Boolean, default=False)
+	detected_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 class FreeLootEntry(db.Model):
 	__tablename__ = 'freeloot_entry'
 	entry_id = db.Column(db.String(256), primary_key=True)

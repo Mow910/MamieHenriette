@@ -5,7 +5,7 @@ from flask import render_template, request, redirect, url_for
 from webapp import webapp
 from webapp.auth import require_page, can_write_page
 from database import db
-from database.models import YouTubeNotification
+from database.models import YouTubeNotification, YouTubeVideoHistory
 from discordbot import bot
 
 
@@ -190,6 +190,48 @@ def delYouTube(id):
 	if not can_write_page("youtube"):
 		return render_template("403.html"), 403
 	notification = YouTubeNotification.query.get_or_404(id)
+	YouTubeVideoHistory.query.filter_by(notification_id=id).delete()
 	db.session.delete(notification)
 	db.session.commit()
 	return redirect(url_for("openYouTube"))
+
+
+@webapp.route("/youtube/history")
+@require_page("youtube")
+def youtubeHistory():
+	page = request.args.get('page', 1, type=int)
+	per_page = 20
+	history_query = YouTubeVideoHistory.query.order_by(YouTubeVideoHistory.detected_at.desc())
+	total = history_query.count()
+	history = history_query.offset((page - 1) * per_page).limit(per_page).all()
+	total_pages = (total + per_page - 1) // per_page
+
+	notification_map = {}
+	for entry in history:
+		if entry.notification_id not in notification_map:
+			notif = YouTubeNotification.query.get(entry.notification_id)
+			notification_map[entry.notification_id] = notif
+
+	msg = request.args.get('msg')
+	msg_type = request.args.get('type', 'info')
+	return render_template(
+		"youtube-history.html",
+		history=history,
+		notification_map=notification_map,
+		page=page,
+		total_pages=total_pages,
+		total=total,
+		msg=msg,
+		msg_type=msg_type,
+	)
+
+
+@webapp.route("/youtube/notify/<int:history_id>", methods=['POST'])
+@require_page("youtube")
+def forceYouTubeNotify(history_id):
+	if not can_write_page("youtube"):
+		return render_template("403.html"), 403
+	from discordbot.youtube import send_video_notification_sync
+	success, message = send_video_notification_sync(history_id)
+	msg_type = 'success' if success else 'error'
+	return redirect(url_for("youtubeHistory") + "?" + urlencode({'msg': message, 'type': msg_type}))
