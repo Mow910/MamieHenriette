@@ -44,6 +44,7 @@ USER_SCOPE = [
 
 async def _onReady(ready_event: EventData):
 	logging.info('Bot Twitch prêt')
+	twitchBot._loop = asyncio.get_running_loop()
 	with webapp.app_context():
 		channel = ConfigurationHelper().getValue('twitch_channel')
 		webapp.config["BOT_STATUS"]["twitch_connected"] = True
@@ -161,7 +162,6 @@ class TwitchBot():
 	_loop = None
 
 	async def _connect(self):
-		self._loop = asyncio.get_event_loop()
 		with webapp.app_context():
 			if _isConfigured():
 				try:
