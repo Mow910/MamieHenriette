@@ -141,11 +141,11 @@ async def clean_command(msg: ChatMessage, twitch: Twitch):
         viewer = args[0].lstrip('@')
         user_id = await _get_user_id(twitch, viewer)
         if user_id:
-            await twitch.delete_chat_messages(broadcaster_id, moderator_id, user_id=user_id)
+            await twitch.ban_user(broadcaster_id, moderator_id, user_id, reason="Purge messages", duration=1)
             _log_action("clean", msg.user.name, viewer)
             logger.info(f'Messages de {viewer} supprimés par {msg.user.name}')
     else:
-        await twitch.delete_chat_messages(broadcaster_id, moderator_id)
+        await twitch.delete_chat_message(broadcaster_id, moderator_id)
         _log_action("clean", msg.user.name, None, "Chat complet")
         logger.info(f'Chat nettoyé par {msg.user.name}')
 
@@ -433,7 +433,7 @@ async def check_message_for_banned_words(msg: ChatMessage, twitch: Twitch) -> bo
                 
                 # Suppression du message
                 try:
-                    await twitch.delete_chat_messages(broadcaster_id, moderator_id, message_id=msg.id)
+                    await twitch.delete_chat_message(broadcaster_id, moderator_id, message_id=msg.id)
                 except Exception as e:
                     logger.error(f"Erreur suppression message mot interdit: {e}")
                 

@@ -122,7 +122,7 @@ async def _handle_unauthorized_link(msg: ChatMessage, twitch: Twitch, config: di
             logger.error(f"Erreur timeout link filter: {e}")
     
     try:
-        await twitch.delete_chat_messages(broadcaster_id, moderator_id, message_id=msg.id)
+        await twitch.delete_chat_message(broadcaster_id, moderator_id, message_id=msg.id)
     except Exception as e:
         logger.error(f"Erreur suppression message: {e}")
     

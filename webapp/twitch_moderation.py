@@ -440,12 +440,12 @@ def execute_moderation_action():
                     if username:
                         user_id = await _get_user_id(twitchBot.twitch, username)
                         if user_id:
-                            await twitchBot.twitch.delete_chat_messages(broadcaster_id, moderator_id, user_id=user_id)
+                            await twitchBot.twitch.ban_user(broadcaster_id, moderator_id, user_id, reason="Purge messages", duration=1)
                             _log_action("clean", admin_name, username)
                             return {"success": True, "message": f"Messages de {username} supprimés"}
                         return {"success": False, "error": f"Utilisateur {username} introuvable"}
                     else:
-                        await twitchBot.twitch.delete_chat_messages(broadcaster_id, moderator_id)
+                        await twitchBot.twitch.delete_chat_message(broadcaster_id, moderator_id)
                         _log_action("clean", admin_name, None, "Chat complet")
                         return {"success": True, "message": "Chat nettoyé"}
                 
