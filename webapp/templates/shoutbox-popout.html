@@ -29,8 +29,14 @@
 </div>
 
 <div class="flex flex-1 overflow-hidden">
-	<div class="flex-1 overflow-y-auto font-mono text-xs p-2" id="shoutboxDisplay" style="scrollbar-width: thin;">
-		<div class="text-gray-500 text-center py-4" id="shoutboxPlaceholder">Aucun message</div>
+	<div class="flex-1 relative">
+		<div class="absolute inset-0 overflow-y-auto font-mono text-xs p-2" id="shoutboxDisplay" style="scrollbar-width: thin;">
+			<div class="text-gray-500 text-center py-4" id="shoutboxPlaceholder">Aucun message</div>
+		</div>
+		<button id="newMsgBtn" onclick="scrollToBottom()" class="hidden absolute bottom-2 left-1/2 -translate-x-1/2 z-10 px-3 py-1 rounded-full bg-indigo-600/90 hover:bg-indigo-500 text-white text-xs font-medium shadow-lg animate-pulse flex items-center gap-1.5 backdrop-blur-sm">
+			<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg>
+			<span id="newMsgText">Nouveaux messages</span>
+		</button>
 	</div>
 	<div class="w-24 border-l border-gray-800 bg-gray-900/50 p-2 overflow-y-auto flex-shrink-0" style="scrollbar-width: thin;">
 		<div class="text-xs text-gray-500 font-semibold mb-1">En ligne</div>
@@ -55,6 +61,7 @@ var lastTimestamp = '';
 var autoScroll = true;
 var tabVisible = true;
 var audioCtx = null;
+var unreadCount = 0;
 
 document.addEventListener('visibilitychange', function() { tabVisible = !document.hidden; });
 
@@ -145,7 +152,26 @@ function addItem(item) {
 	display.appendChild(line);
 	if (!tabVisible) beep();
 	while (display.children.length > 200) display.removeChild(display.firstChild);
-	if (autoScroll) display.scrollTop = display.scrollHeight;
+	if (autoScroll) {
+		display.scrollTop = display.scrollHeight;
+	} else {
+		unreadCount++;
+		var btn = document.getElementById('newMsgBtn');
+		var txt = document.getElementById('newMsgText');
+		if (btn && txt) {
+			txt.textContent = unreadCount + ' nouveau' + (unreadCount > 1 ? 'x' : '') + ' message' + (unreadCount > 1 ? 's' : '');
+			btn.classList.remove('hidden');
+		}
+	}
+}
+
+function scrollToBottom() {
+	var d = document.getElementById('shoutboxDisplay');
+	d.scrollTop = d.scrollHeight;
+	autoScroll = true;
+	unreadCount = 0;
+	var btn = document.getElementById('newMsgBtn');
+	if (btn) btn.classList.add('hidden');
 }
 
 function updateOnline(users) {
@@ -170,7 +196,15 @@ function poll() {
 	fetch(url)
 		.then(function(r) { return r.json(); })
 		.then(function(data) {
-			if (data.items && data.items.length > 0) data.items.forEach(addItem);
+			if (data.items && data.items.length > 0) {
+				data.items.forEach(addItem);
+				if (autoScroll) {
+					setTimeout(function() {
+						var d = document.getElementById('shoutboxDisplay');
+						d.scrollTop = d.scrollHeight;
+					}, 0);
+				}
+			}
 			if (data.timestamp) lastTimestamp = data.timestamp;
 			if (data.online_users) updateOnline(data.online_users);
 			var cnt = document.getElementById('shoutboxCount');
@@ -202,6 +236,11 @@ function sendShoutboxMessage(event) {
 
 document.getElementById('shoutboxDisplay').addEventListener('scroll', function() {
 	autoScroll = this.scrollHeight - this.scrollTop <= this.clientHeight + 30;
+	if (autoScroll && unreadCount > 0) {
+		unreadCount = 0;
+		var btn = document.getElementById('newMsgBtn');
+		if (btn) btn.classList.add('hidden');
+	}
 });
 
 setInterval(poll, 3000);
