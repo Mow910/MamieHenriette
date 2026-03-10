@@ -651,6 +651,7 @@
 // =============================
 var displayedMessages = new Set();
 var isAutoScroll = true;
+var currentUsername = '{{ current_user.username }}';
 
 function escapeHtml(text) {
 	var div = document.createElement('div');
@@ -713,7 +714,7 @@ function addBotMessageToDisplay(message, type) {
 	var messageDiv = document.createElement('div');
 	messageDiv.className = bgColor + ' rounded-lg p-3 text-sm animate-fade-in border-l-2';
 	messageDiv.style.borderLeftColor = borderColor;
-	messageDiv.innerHTML = '<div class="flex items-start gap-2"><div class="flex-1 min-w-0"><div class="flex items-center gap-2 mb-1"><span class="font-bold text-purple-600 dark:text-purple-400">Bot</span><span class="text-xs text-gray-500 dark:text-gray-400">' + timeStr + '</span></div><div class="text-gray-900 dark:text-gray-100 break-words">' + escapeHtml(message) + '</div></div></div>';
+	messageDiv.innerHTML = '<div class="flex items-start gap-2"><div class="flex-1 min-w-0"><div class="flex items-center gap-2 mb-1"><span class="font-bold text-purple-600 dark:text-purple-400">Bot <span class="font-normal text-gray-500 dark:text-gray-400">(' + escapeHtml(currentUsername) + ')</span></span><span class="text-xs text-gray-500 dark:text-gray-400">' + timeStr + '</span></div><div class="text-gray-900 dark:text-gray-100 break-words">' + escapeHtml(message) + '</div></div></div>';
 
 	messagesContainer.appendChild(messageDiv);
 	while (messagesContainer.children.length > 100) messagesContainer.removeChild(messagesContainer.firstChild);
