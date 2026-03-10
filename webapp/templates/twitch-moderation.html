@@ -899,7 +899,7 @@ var lastLogTimestamp = '';
 		if (id) knownLogIds.add(id);
 	});
 	{% if logs and logs|length > 0 %}
-	lastLogTimestamp = '{{ logs[0].created_at.isoformat() }}';
+	lastLogTimestamp = {{ logs[0].created_at.isoformat() | tojson }};
 	{% endif %}
 })();
 
@@ -1028,7 +1028,7 @@ document.addEventListener('keydown', function(e) {
 // =============================
 // Shoutbox modérateurs (IRC)
 // =============================
-var shoutboxCurrentUser = '{{ current_user.username }}';
+var shoutboxCurrentUser = {{ current_user.username | tojson }};
 var shoutboxKnownIds = new Set();
 var shoutboxLastTimestamp = '';
 var shoutboxAutoScroll = true;
@@ -1334,7 +1334,7 @@ document.addEventListener('keydown', function(e) {
 // =============================
 // Polling infos stream dynamique
 // =============================
-var _streamStartedAt = {{ "'" ~ started_at ~ "'" if started_at else 'null' }};
+var _streamStartedAt = {{ started_at | tojson }};
 var _uptimeInterval = null;
 
 function updateUptime() {
