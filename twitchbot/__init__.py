@@ -158,8 +158,10 @@ def _isConfigured():
 
 class TwitchBot():
 	_eventsub = None
+	_loop = None
 
 	async def _connect(self):
+		self._loop = asyncio.get_event_loop()
 		with webapp.app_context():
 			if _isConfigured():
 				try:

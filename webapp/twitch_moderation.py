@@ -287,24 +287,18 @@ def send_twitch_message():
     if not channel:
         return jsonify({"success": False, "error": "Channel Twitch non configuré"}), 400
     
-    # Envoyer le message de manière asynchrone
     try:
+        if not twitchBot._loop:
+            return jsonify({"success": False, "error": "Event loop du bot non disponible"}), 503
+
         async def send_msg():
-            try:
-                await twitchBot.chat.send_message(channel, message)
-                return True
-            except Exception as e:
-                return str(e)
-        
-        # Exécuter la coroutine de manière synchrone
-        loop = asyncio.new_event_loop()
-        result = loop.run_until_complete(send_msg())
-        loop.close()
-        
-        if result is True:
-            return jsonify({"success": True})
-        else:
-            return jsonify({"success": False, "error": f"Erreur: {result}"}), 500
+            await twitchBot.chat.send_message(channel, message)
+
+        future = asyncio.run_coroutine_threadsafe(send_msg(), twitchBot._loop)
+        future.result(timeout=10)
+        return jsonify({"success": True})
+    except TimeoutError:
+        return jsonify({"success": False, "error": "Timeout lors de l'envoi"}), 504
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -312,7 +306,7 @@ def send_twitch_message():
 @require_page("twitch_moderation")
 def get_twitch_messages():
     """Retourne les derniers messages du chat Twitch"""
-    messages = webapp.config["BOT_STATUS"].get("twitch_chat_messages", [])
+    messages = list(webapp.config["BOT_STATUS"].get("twitch_chat_messages", []))
     return jsonify({"messages": messages})
 
 
@@ -395,116 +389,112 @@ def execute_moderation_action():
     
     admin_name = f"WebApp ({current_user.username})"
 
-    # Exécuter l'action de manière asynchrone
+    if not twitchBot._loop:
+        return jsonify({"success": False, "error": "Event loop du bot non disponible"}), 503
+
+    async def execute_action():
+        if action == 'timeout':
+            from twitchbot.moderation import _get_broadcaster_id, _get_moderator_id, _get_user_id, _log_action
+            username = params.get('username', '').strip().lstrip('@')
+            duration = int(params.get('duration', 600))
+            reason = params.get('reason', 'Timeout')
+            
+            broadcaster_id = await _get_broadcaster_id(twitchBot.twitch, channel)
+            moderator_id = await _get_moderator_id(twitchBot.twitch)
+            user_id = await _get_user_id(twitchBot.twitch, username)
+            
+            if user_id:
+                await twitchBot.twitch.ban_user(broadcaster_id, moderator_id, user_id, reason=reason, duration=duration)
+                _log_action("timeout", admin_name, username, f"{duration}s - {reason}")
+                return {"success": True, "message": f"Timeout de {username} pour {duration}s"}
+            return {"success": False, "error": f"Utilisateur {username} introuvable"}
+        
+        elif action == 'ban':
+            from twitchbot.moderation import _get_broadcaster_id, _get_moderator_id, _get_user_id, _log_action
+            username = params.get('username', '').strip().lstrip('@')
+            reason = params.get('reason', 'Ban')
+            
+            broadcaster_id = await _get_broadcaster_id(twitchBot.twitch, channel)
+            moderator_id = await _get_moderator_id(twitchBot.twitch)
+            user_id = await _get_user_id(twitchBot.twitch, username)
+            
+            if user_id:
+                await twitchBot.twitch.ban_user(broadcaster_id, moderator_id, user_id, reason=reason)
+                _log_action("ban", admin_name, username, reason)
+                return {"success": True, "message": f"Ban de {username}"}
+            return {"success": False, "error": f"Utilisateur {username} introuvable"}
+        
+        elif action == 'clean':
+            from twitchbot.moderation import _get_broadcaster_id, _get_moderator_id, _get_user_id, _log_action
+            username = params.get('username', '').strip().lstrip('@')
+            
+            broadcaster_id = await _get_broadcaster_id(twitchBot.twitch, channel)
+            moderator_id = await _get_moderator_id(twitchBot.twitch)
+            
+            if username:
+                user_id = await _get_user_id(twitchBot.twitch, username)
+                if user_id:
+                    await twitchBot.twitch.ban_user(broadcaster_id, moderator_id, user_id, reason="Purge messages", duration=1)
+                    _log_action("clean", admin_name, username)
+                    return {"success": True, "message": f"Messages de {username} supprimés"}
+                return {"success": False, "error": f"Utilisateur {username} introuvable"}
+            else:
+                await twitchBot.twitch.delete_chat_message(broadcaster_id, moderator_id)
+                _log_action("clean", admin_name, None, "Chat complet")
+                return {"success": True, "message": "Chat nettoyé"}
+        
+        elif action == 'permit':
+            from database.models import TwitchPermit
+            username = params.get('username', '').strip().lstrip('@').lower()
+            duration = int(params.get('duration', 60))
+            
+            expires_at = datetime.now() + timedelta(seconds=duration)
+            
+            with webapp.app_context():
+                existing = TwitchPermit.query.filter_by(username=username).first()
+                if existing:
+                    existing.expires_at = expires_at
+                else:
+                    permit = TwitchPermit(username=username, expires_at=expires_at)
+                    db.session.add(permit)
+                db.session.commit()
+            
+            return {"success": True, "message": f"Permit accordé à {username} pour {duration//60}min"}
+        
+        elif action in ['subon', 'suboff', 'emoteon', 'emoteoff']:
+            from twitchbot.moderation import _get_broadcaster_id, _get_moderator_id, _log_action
+            
+            broadcaster_id = await _get_broadcaster_id(twitchBot.twitch, channel)
+            moderator_id = await _get_moderator_id(twitchBot.twitch)
+            
+            if action == 'subon':
+                await twitchBot.twitch.update_chat_settings(broadcaster_id, moderator_id, subscriber_mode=True)
+                _log_action("subon", admin_name)
+                return {"success": True, "message": "Mode abonnés activé"}
+            elif action == 'suboff':
+                await twitchBot.twitch.update_chat_settings(broadcaster_id, moderator_id, subscriber_mode=False)
+                _log_action("suboff", admin_name)
+                return {"success": True, "message": "Mode abonnés désactivé"}
+            elif action == 'emoteon':
+                await twitchBot.twitch.update_chat_settings(broadcaster_id, moderator_id, emote_mode=True)
+                _log_action("emoteon", admin_name)
+                return {"success": True, "message": "Mode emote activé"}
+            elif action == 'emoteoff':
+                await twitchBot.twitch.update_chat_settings(broadcaster_id, moderator_id, emote_mode=False)
+                _log_action("emoteoff", admin_name)
+                return {"success": True, "message": "Mode emote désactivé"}
+        
+        return {"success": False, "error": f"Action '{action}' non reconnue"}
+
     try:
-        async def execute_action():
-            try:
-                if action == 'timeout':
-                    from twitchbot.moderation import _get_broadcaster_id, _get_moderator_id, _get_user_id, _log_action
-                    username = params.get('username', '').strip().lstrip('@')
-                    duration = int(params.get('duration', 600))  # en secondes
-                    reason = params.get('reason', 'Timeout')
-                    
-                    broadcaster_id = await _get_broadcaster_id(twitchBot.twitch, channel)
-                    moderator_id = await _get_moderator_id(twitchBot.twitch)
-                    user_id = await _get_user_id(twitchBot.twitch, username)
-                    
-                    if user_id:
-                        await twitchBot.twitch.ban_user(broadcaster_id, moderator_id, user_id, reason=reason, duration=duration)
-                        _log_action("timeout", admin_name, username, f"{duration}s - {reason}")
-                        return {"success": True, "message": f"Timeout de {username} pour {duration}s"}
-                    return {"success": False, "error": f"Utilisateur {username} introuvable"}
-                
-                elif action == 'ban':
-                    from twitchbot.moderation import _get_broadcaster_id, _get_moderator_id, _get_user_id, _log_action
-                    username = params.get('username', '').strip().lstrip('@')
-                    reason = params.get('reason', 'Ban')
-                    
-                    broadcaster_id = await _get_broadcaster_id(twitchBot.twitch, channel)
-                    moderator_id = await _get_moderator_id(twitchBot.twitch)
-                    user_id = await _get_user_id(twitchBot.twitch, username)
-                    
-                    if user_id:
-                        await twitchBot.twitch.ban_user(broadcaster_id, moderator_id, user_id, reason=reason)
-                        _log_action("ban", admin_name, username, reason)
-                        return {"success": True, "message": f"Ban de {username}"}
-                    return {"success": False, "error": f"Utilisateur {username} introuvable"}
-                
-                elif action == 'clean':
-                    from twitchbot.moderation import _get_broadcaster_id, _get_moderator_id, _get_user_id, _log_action
-                    username = params.get('username', '').strip().lstrip('@')
-                    
-                    broadcaster_id = await _get_broadcaster_id(twitchBot.twitch, channel)
-                    moderator_id = await _get_moderator_id(twitchBot.twitch)
-                    
-                    if username:
-                        user_id = await _get_user_id(twitchBot.twitch, username)
-                        if user_id:
-                            await twitchBot.twitch.ban_user(broadcaster_id, moderator_id, user_id, reason="Purge messages", duration=1)
-                            _log_action("clean", admin_name, username)
-                            return {"success": True, "message": f"Messages de {username} supprimés"}
-                        return {"success": False, "error": f"Utilisateur {username} introuvable"}
-                    else:
-                        await twitchBot.twitch.delete_chat_message(broadcaster_id, moderator_id)
-                        _log_action("clean", admin_name, None, "Chat complet")
-                        return {"success": True, "message": "Chat nettoyé"}
-                
-                elif action == 'permit':
-                    from database.models import TwitchPermit
-                    username = params.get('username', '').strip().lstrip('@').lower()
-                    duration = int(params.get('duration', 60))  # en secondes
-                    
-                    expires_at = datetime.now() + timedelta(seconds=duration)
-                    
-                    with webapp.app_context():
-                        existing = TwitchPermit.query.filter_by(username=username).first()
-                        if existing:
-                            existing.expires_at = expires_at
-                        else:
-                            permit = TwitchPermit(username=username, expires_at=expires_at)
-                            db.session.add(permit)
-                        db.session.commit()
-                    
-                    return {"success": True, "message": f"Permit accordé à {username} pour {duration//60}min"}
-                
-                elif action in ['subon', 'suboff', 'emoteon', 'emoteoff']:
-                    from twitchbot.moderation import _get_broadcaster_id, _get_moderator_id, _log_action
-                    
-                    broadcaster_id = await _get_broadcaster_id(twitchBot.twitch, channel)
-                    moderator_id = await _get_moderator_id(twitchBot.twitch)
-                    
-                    if action == 'subon':
-                        await twitchBot.twitch.update_chat_settings(broadcaster_id, moderator_id, subscriber_mode=True)
-                        _log_action("subon", admin_name)
-                        return {"success": True, "message": "Mode abonnés activé"}
-                    elif action == 'suboff':
-                        await twitchBot.twitch.update_chat_settings(broadcaster_id, moderator_id, subscriber_mode=False)
-                        _log_action("suboff", admin_name)
-                        return {"success": True, "message": "Mode abonnés désactivé"}
-                    elif action == 'emoteon':
-                        await twitchBot.twitch.update_chat_settings(broadcaster_id, moderator_id, emote_mode=True)
-                        _log_action("emoteon", admin_name)
-                        return {"success": True, "message": "Mode emote activé"}
-                    elif action == 'emoteoff':
-                        await twitchBot.twitch.update_chat_settings(broadcaster_id, moderator_id, emote_mode=False)
-                        _log_action("emoteoff", admin_name)
-                        return {"success": True, "message": "Mode emote désactivé"}
-                
-                return {"success": False, "error": f"Action '{action}' non reconnue"}
-                
-            except Exception as e:
-                import logging
-                logging.error(f"Erreur lors de l'exécution de l'action {action}: {e}")
-                return {"success": False, "error": str(e)}
-        
-        # Exécuter la coroutine de manière synchrone
-        loop = asyncio.new_event_loop()
-        result = loop.run_until_complete(execute_action())
-        loop.close()
-        
+        future = asyncio.run_coroutine_threadsafe(execute_action(), twitchBot._loop)
+        result = future.result(timeout=15)
         return jsonify(result)
-        
+    except TimeoutError:
+        return jsonify({"success": False, "error": "Timeout lors de l'exécution"}), 504
     except Exception as e:
+        import logging
+        logging.error(f"Erreur lors de l'exécution de l'action {action}: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 
