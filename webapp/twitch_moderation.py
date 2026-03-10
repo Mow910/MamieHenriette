@@ -393,6 +393,8 @@ def execute_moderation_action():
     from twitchAPI.chat import ChatMessage
     from types import SimpleNamespace
     
+    admin_name = f"WebApp ({current_user.username})"
+
     # Exécuter l'action de manière asynchrone
     try:
         async def execute_action():
@@ -409,7 +411,7 @@ def execute_moderation_action():
                     
                     if user_id:
                         await twitchBot.twitch.ban_user(broadcaster_id, moderator_id, user_id, reason=reason, duration=duration)
-                        _log_action("timeout", "WebApp", username, f"{duration}s - {reason}")
+                        _log_action("timeout", admin_name, username, f"{duration}s - {reason}")
                         return {"success": True, "message": f"Timeout de {username} pour {duration}s"}
                     return {"success": False, "error": f"Utilisateur {username} introuvable"}
                 
@@ -424,7 +426,7 @@ def execute_moderation_action():
                     
                     if user_id:
                         await twitchBot.twitch.ban_user(broadcaster_id, moderator_id, user_id, reason=reason)
-                        _log_action("ban", "WebApp", username, reason)
+                        _log_action("ban", admin_name, username, reason)
                         return {"success": True, "message": f"Ban de {username}"}
                     return {"success": False, "error": f"Utilisateur {username} introuvable"}
                 
@@ -439,12 +441,12 @@ def execute_moderation_action():
                         user_id = await _get_user_id(twitchBot.twitch, username)
                         if user_id:
                             await twitchBot.twitch.delete_chat_messages(broadcaster_id, moderator_id, user_id=user_id)
-                            _log_action("clean", "WebApp", username)
+                            _log_action("clean", admin_name, username)
                             return {"success": True, "message": f"Messages de {username} supprimés"}
                         return {"success": False, "error": f"Utilisateur {username} introuvable"}
                     else:
                         await twitchBot.twitch.delete_chat_messages(broadcaster_id, moderator_id)
-                        _log_action("clean", "WebApp", None, "Chat complet")
+                        _log_action("clean", admin_name, None, "Chat complet")
                         return {"success": True, "message": "Chat nettoyé"}
                 
                 elif action == 'permit':
@@ -473,19 +475,19 @@ def execute_moderation_action():
                     
                     if action == 'subon':
                         await twitchBot.twitch.update_chat_settings(broadcaster_id, moderator_id, subscriber_mode=True)
-                        _log_action("subon", "WebApp")
+                        _log_action("subon", admin_name)
                         return {"success": True, "message": "Mode abonnés activé"}
                     elif action == 'suboff':
                         await twitchBot.twitch.update_chat_settings(broadcaster_id, moderator_id, subscriber_mode=False)
-                        _log_action("suboff", "WebApp")
+                        _log_action("suboff", admin_name)
                         return {"success": True, "message": "Mode abonnés désactivé"}
                     elif action == 'emoteon':
                         await twitchBot.twitch.update_chat_settings(broadcaster_id, moderator_id, emote_mode=True)
-                        _log_action("emoteon", "WebApp")
+                        _log_action("emoteon", admin_name)
                         return {"success": True, "message": "Mode emote activé"}
                     elif action == 'emoteoff':
                         await twitchBot.twitch.update_chat_settings(broadcaster_id, moderator_id, emote_mode=False)
-                        _log_action("emoteoff", "WebApp")
+                        _log_action("emoteoff", admin_name)
                         return {"success": True, "message": "Mode emote désactivé"}
                 
                 return {"success": False, "error": f"Action '{action}' non reconnue"}
