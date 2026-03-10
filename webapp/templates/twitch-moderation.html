@@ -651,7 +651,7 @@
 // =============================
 var displayedMessages = new Set();
 var isAutoScroll = true;
-var currentUsername = '{{ current_user.username }}';
+var currentUsername = {{ current_user.username | tojson }};
 
 function escapeHtml(text) {
 	var div = document.createElement('div');
