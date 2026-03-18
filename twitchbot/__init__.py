@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 
 from twitchAPI.twitch import Twitch
 from twitchAPI.type import AuthScope, ChatEvent
@@ -71,6 +72,13 @@ async def _onMessage(msg: ChatMessage):
 	# Stocker le message dans BOT_STATUS pour l'affichage web
 	with webapp.app_context():
 		from datetime import datetime
+		now_ts = time.time()
+		msg_timestamps = webapp.config["BOT_STATUS"].setdefault("twitch_msg_timestamps", [])
+		msg_timestamps.append(now_ts)
+		cutoff = now_ts - 60
+		webapp.config["BOT_STATUS"]["twitch_msg_timestamps"] = [ts for ts in msg_timestamps if ts >= cutoff]
+		webapp.config["BOT_STATUS"]["twitch_msg_per_minute"] = len(webapp.config["BOT_STATUS"]["twitch_msg_timestamps"])
+
 		message_data = {
 			'username': msg.user.name,
 			'text': msg.text,
@@ -176,6 +184,19 @@ class TwitchBot():
 					self.chat.start()
 				except Exception as e:
 					logging.error(f'Échec de l\'authentification Twitch : {e}')
+				finally:
+					webapp.config["BOT_STATUS"]["twitch_connected"] = False
+					self._loop = None
+					try:
+						if hasattr(self, 'chat') and self.chat:
+							self.chat.stop()
+					except Exception:
+						pass
+					try:
+						if hasattr(self, 'twitch') and self.twitch:
+							await self.twitch.close()
+					except Exception:
+						pass
 			else:
 				logging.info("Twitch n'est pas configuré")
 
@@ -287,7 +308,22 @@ class TwitchBot():
 			await asyncio.sleep(120)
 
 	def begin(self):
-		asyncio.run(self._connect())
+		retry_delay = 15
+		while True:
+			try:
+				if not _isConfigured():
+					logging.info("Twitch non configuré, nouvelle tentative dans 60s")
+					with webapp.app_context():
+						webapp.config["BOT_STATUS"]["twitch_connected"] = False
+					time.sleep(60)
+					continue
+				asyncio.run(self._connect())
+				logging.warning("Session Twitch terminée, reconnexion dans %ss", retry_delay)
+			except Exception as e:
+				logging.error("Déconnexion/erreur Twitch: %s", e)
+			with webapp.app_context():
+				webapp.config["BOT_STATUS"]["twitch_connected"] = False
+			time.sleep(retry_delay)
 
 	async def _close(self):
 		self.chat.stop()

@@ -11,6 +11,7 @@ webapp.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-change-in
 webapp.config["BOT_STATUS"] = {
 	"discord_connected": False,
 	"discord_guild_count": 0,
+	"discord_streaming_activity": False,
 	"twitch_connected": False,
 	"twitch_channel_name": None,
 	"twitch_is_live": False,
@@ -18,6 +19,10 @@ webapp.config["BOT_STATUS"] = {
 	"twitch_stream_title": "",
 	"twitch_game_name": "",
 	"twitch_started_at": None,
+	"twitch_ended_at": None,
+	"twitch_chat_clear_notice_sent": False,
+	"twitch_msg_per_minute": 0,
+	"twitch_msg_timestamps": [],  # Unix timestamps des 60 dernières secondes
 	"twitch_chat_messages": [],  # Derniers messages du chat (max 100)
 	"shoutbox_heartbeats": {},   # {"username": datetime} — présence des modos
 }

@@ -84,6 +84,10 @@ class DiscordBot(discord.Client):
 	
 	async def updateStatus(self):
 		while not self.is_closed():
+			bot_status = webapp.config.get("BOT_STATUS", {})
+			if bot_status.get("twitch_is_live") or bot_status.get("discord_streaming_activity"):
+				await asyncio.sleep(60)
+				continue
 			humeurs = Humeur.query.all()
 			if len(humeurs)>0 :
 				humeur = random.choice(humeurs)

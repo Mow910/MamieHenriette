@@ -306,8 +306,31 @@ def send_twitch_message():
 @require_page("twitch_moderation")
 def get_twitch_messages():
     """Retourne les derniers messages du chat Twitch"""
-    messages = list(webapp.config["BOT_STATUS"].get("twitch_chat_messages", []))
-    return jsonify({"messages": messages})
+    bot_status = webapp.config["BOT_STATUS"]
+    clear_chat = False
+    clear_reason = None
+
+    ended_at_raw = bot_status.get("twitch_ended_at")
+    if ended_at_raw:
+        try:
+            ended_at = datetime.fromisoformat(ended_at_raw)
+            if datetime.now(ended_at.tzinfo) >= ended_at + timedelta(hours=1):
+                if bot_status.get("twitch_chat_messages"):
+                    bot_status["twitch_chat_messages"] = []
+                bot_status["twitch_msg_timestamps"] = []
+                bot_status["twitch_msg_per_minute"] = 0
+                clear_chat = True
+                clear_reason = "Chat vidé automatiquement 1h après la fin du live."
+        except ValueError:
+            pass
+
+    messages = list(bot_status.get("twitch_chat_messages", []))
+    return jsonify({
+        "messages": messages,
+        "msg_per_min": int(bot_status.get("twitch_msg_per_minute", 0)),
+        "clear_chat": clear_chat,
+        "clear_reason": clear_reason,
+    })
 
 
 @webapp.route("/twitch-moderation/stream-info")
@@ -321,6 +344,7 @@ def twitch_stream_info():
         "title": bot_status.get("twitch_stream_title", ""),
         "game_name": bot_status.get("twitch_game_name", ""),
         "started_at": bot_status.get("twitch_started_at"),
+        "msg_per_min": int(bot_status.get("twitch_msg_per_minute", 0)),
     })
 
 @webapp.route("/twitch-moderation/logs/poll")
@@ -516,6 +540,29 @@ def shoutbox_send():
     msg = ModShoutboxMessage(
         author=current_user.username,
         message=message,
+        created_at=datetime.now(),
+    )
+    db.session.add(msg)
+    db.session.commit()
+    return jsonify({"success": True, "id": msg.id})
+
+
+@webapp.route("/twitch-moderation/shoutbox/transfer", methods=['POST'])
+@require_page("twitch_moderation")
+def shoutbox_transfer():
+    if not can_write_page("twitch_moderation"):
+        return jsonify({"success": False, "error": "Permission refusée"}), 403
+
+    data = request.get_json() or {}
+    username = (data.get('username') or '').strip().lstrip('@')
+    message = (data.get('message') or '').strip()
+    if not username or not message:
+        return jsonify({"success": False, "error": "Données incomplètes"}), 400
+
+    text = f"@{username}: {message}"
+    msg = ModShoutboxMessage(
+        author=current_user.username,
+        message=text[:500],
         created_at=datetime.now(),
     )
     db.session.add(msg)

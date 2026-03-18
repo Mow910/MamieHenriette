@@ -1,4 +1,6 @@
 import logging
+import asyncio
+from datetime import datetime
 import discord
 
 from twitchAPI.twitch import Twitch
@@ -47,6 +49,8 @@ async def checkOnlineStreamer(twitch: Twitch) :
 	global _live_alert_first_check
 	with webapp.app_context() : 
 		alerts : list[LiveAlert] = LiveAlert.query.all()
+		bot_status = webapp.config["BOT_STATUS"]
+		was_live = bot_status.get("twitch_is_live", False)
 
 		try:
 			streams = await _retreiveStreams(twitch, alerts)
@@ -65,17 +69,37 @@ async def checkOnlineStreamer(twitch: Twitch) :
 		
 		# Mise à jour du BOT_STATUS pour la webapp
 		if main_stream:
-			webapp.config["BOT_STATUS"]["twitch_is_live"] = True
-			webapp.config["BOT_STATUS"]["twitch_viewer_count"] = getattr(main_stream, 'viewer_count', 0)
-			webapp.config["BOT_STATUS"]["twitch_stream_title"] = getattr(main_stream, 'title', '') or ''
-			webapp.config["BOT_STATUS"]["twitch_game_name"] = getattr(main_stream, 'game_name', '') or ''
-			webapp.config["BOT_STATUS"]["twitch_started_at"] = main_stream.started_at.isoformat() if getattr(main_stream, 'started_at', None) else None
+			bot_status["twitch_is_live"] = True
+			bot_status["twitch_viewer_count"] = getattr(main_stream, 'viewer_count', 0)
+			bot_status["twitch_stream_title"] = getattr(main_stream, 'title', '') or ''
+			bot_status["twitch_game_name"] = getattr(main_stream, 'game_name', '') or ''
+			bot_status["twitch_started_at"] = main_stream.started_at.isoformat() if getattr(main_stream, 'started_at', None) else None
+			bot_status["twitch_ended_at"] = None
+			bot_status["twitch_chat_clear_notice_sent"] = False
 		else:
-			webapp.config["BOT_STATUS"]["twitch_is_live"] = False
-			webapp.config["BOT_STATUS"]["twitch_viewer_count"] = 0
-			webapp.config["BOT_STATUS"]["twitch_stream_title"] = ""
-			webapp.config["BOT_STATUS"]["twitch_game_name"] = ""
-			webapp.config["BOT_STATUS"]["twitch_started_at"] = None
+			bot_status["twitch_is_live"] = False
+			bot_status["twitch_viewer_count"] = 0
+			bot_status["twitch_stream_title"] = ""
+			bot_status["twitch_game_name"] = ""
+			bot_status["twitch_started_at"] = None
+			if was_live and not bot_status.get("twitch_ended_at"):
+				bot_status["twitch_ended_at"] = datetime.now().isoformat()
+			if was_live and not bot_status.get("twitch_chat_clear_notice_sent"):
+				messages = bot_status.setdefault("twitch_chat_messages", [])
+				now_iso = datetime.now().isoformat()
+				messages.append({
+					'username': 'System',
+					'text': 'Live terminé, ce chat sera vidé dans 1h.',
+					'timestamp': now_iso,
+					'is_mod': False,
+					'is_subscriber': False,
+					'is_vip': False,
+					'color': '#22c55e',
+					'panel_only': True,
+				})
+				if len(messages) > 100:
+					messages.pop(0)
+				bot_status["twitch_chat_clear_notice_sent"] = True
 		
 		# Premier check : synchronisation sans notification
 		if _live_alert_first_check:
@@ -113,15 +137,27 @@ async def checkOnlineStreamer(twitch: Twitch) :
 
 
 async def _updateBotActivity(stream: Stream | None):
+	if not bot.loop or bot.loop.is_closed():
+		logger.warning("Loop Discord non disponible pour mise à jour de présence")
+		return
+
 	if stream:
 		logger.info(f'Mise à jour de l\'activité : Regarde le live de {stream.user_name}')
 		activity = discord.Streaming(
 			name=f'Regarde le live de {stream.user_name}',
 			url=f'https://www.twitch.tv/{stream.user_login}'
 		)
-		await bot.change_presence(status=discord.Status.online, activity=activity)
+		with webapp.app_context():
+			webapp.config["BOT_STATUS"]["discord_streaming_activity"] = True
+		future = asyncio.run_coroutine_threadsafe(
+			bot.change_presence(status=discord.Status.online, activity=activity),
+			bot.loop
+		)
+		future.result(timeout=10)
 	else:
 		logger.info('Aucun stream à regarder, retour à l\'activité normale')
+		with webapp.app_context():
+			webapp.config["BOT_STATUS"]["discord_streaming_activity"] = False
 		# Remettre une humeur aléatoire
 		from database.models import Humeur
 		import random
@@ -129,10 +165,18 @@ async def _updateBotActivity(stream: Stream | None):
 		if humeurs:
 			humeur = random.choice(humeurs)
 			logger.info(f'Réinitialisation du statut : {humeur.text}')
-			await bot.change_presence(status=discord.Status.online, activity=discord.CustomActivity(humeur.text))
+			future = asyncio.run_coroutine_threadsafe(
+				bot.change_presence(status=discord.Status.online, activity=discord.CustomActivity(humeur.text)),
+				bot.loop
+			)
+			future.result(timeout=10)
 		else:
 			# Si pas de humeur, remettre un statut par défaut
-			await bot.change_presence(status=discord.Status.online, activity=None)
+			future = asyncio.run_coroutine_threadsafe(
+				bot.change_presence(status=discord.Status.online, activity=None),
+				bot.loop
+			)
+			future.result(timeout=10)
 
 async def _notifyAlert(alert: LiveAlert, stream: Stream):
 	stream_url = f'https://www.twitch.tv/{stream.user_login}'
