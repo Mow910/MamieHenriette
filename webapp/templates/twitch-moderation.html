@@ -75,11 +75,22 @@
 		transition: opacity 0.2s;
 	}
 	#editModal.hidden, #addCommandModal.hidden { display: none; }
+	@media (min-width: 1536px) {
+		/* Étendre uniquement la page modération Twitch au-delà du max-w global */
+		.twitch-wide-layout {
+			width: min(1920px, calc(100vw - 24px));
+			margin-left: 50%;
+			transform: translateX(-50%);
+		}
+		.twitch-wide-layout .twitch-grid {
+			grid-template-columns: minmax(0, 1.35fr) minmax(0, 1.05fr) minmax(0, 1.05fr) minmax(320px, 0.95fr);
+		}
+	}
 </style>
 
 <div id="notificationStack"></div>
 
-<div class="space-y-4">
+<div class="space-y-4 twitch-wide-layout">
 	<div>
 		<h1 class="text-xl font-bold text-gray-900 dark:text-white">Modération Twitch</h1>
 		<p class="text-sm text-gray-600 dark:text-gray-400">Commandes et logs de modération pour {{ twitch_channel }}</p>
@@ -135,7 +146,7 @@
 		</div>
 	</div>
 
-	<div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-12 gap-4">
+	<div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-12 gap-4 twitch-grid">
 		<!-- Colonne 1 : Live Twitch -->
 		<div class="2xl:col-span-4 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col 2xl:h-[640px]">
 			<div class="aspect-video bg-gray-900">
