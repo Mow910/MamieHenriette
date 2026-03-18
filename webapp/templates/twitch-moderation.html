@@ -135,7 +135,7 @@
 		</div>
 	</div>
 
-	<div class="grid grid-cols-1 xl:grid-cols-4 gap-4">
+	<div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-4 gap-4">
 		<!-- Colonne 1 : Live Twitch -->
 		<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col xl:h-[600px]">
 			<div class="aspect-video bg-gray-900">
@@ -163,24 +163,10 @@
 					Ouvrir
 				</a>
 			</div>
-			<div class="p-3 space-y-2 text-sm overflow-y-auto">
-				<div>
-					<div class="text-xs text-gray-500 dark:text-gray-400 mb-1">Titre</div>
-					<div class="font-medium text-gray-900 dark:text-white leading-snug" id="streamTitle">{{ stream_title or 'N/A' }}</div>
-				</div>
-				<div class="flex items-center justify-between">
-					<div>
-						<div class="text-xs text-gray-500 dark:text-gray-400 mb-1">Catégorie</div>
-						<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" id="streamGame">{{ game_name or 'N/A' }}</span>
-					</div>
-					<div class="text-right">
-						<div class="text-xs text-gray-500 dark:text-gray-400 mb-1">Viewers</div>
-						<div class="text-xl font-bold text-purple-600 dark:text-purple-400" id="streamViewers">{{ viewer_count }}</div>
-					</div>
-				</div>
-				<div>
-					<div class="text-xs text-gray-500 dark:text-gray-400 mb-1">Uptime</div>
-					<div class="text-sm font-mono font-medium text-gray-900 dark:text-white" id="streamUptime">--:--:--</div>
+			<div class="flex-1 p-3 flex items-center justify-center">
+				<div class="text-center">
+					<div class="text-sm font-medium text-gray-900 dark:text-white">{{ 'Live en cours' if is_live else 'En attente du prochain live' }}</div>
+					<div class="text-xs text-gray-500 dark:text-gray-400 mt-1">Lecture Twitch intégrée</div>
 				</div>
 			</div>
 		</div>

@@ -177,11 +177,26 @@ class TwitchBot():
 					self.twitch = await Twitch(helper.getValue('twitch_client_id'), helper.getValue('twitch_client_secret'))
 					await self.twitch.set_user_authentication(helper.getValue('twitch_access_token'), USER_SCOPE, helper.getValue('twitch_refresh_token'))
 					self.chat = await Chat(self.twitch)
+					# Laisser des tentatives de reconnexion internes plus longues avant reboot complet du client
+					self.chat.reconnect_delay_steps = [0, 1, 2, 4, 8, 16, 32, 64, 128, 128, 128]
 					self.chat.register_event(ChatEvent.READY, _onReady)
 					self.chat.register_event(ChatEvent.MESSAGE, _onMessage)
 					self.chat.register_command('hello', _helloCommand)
 					self._register_moderation_commands()
 					self.chat.start()
+					disconnected_since = None
+					while True:
+						connected = self.chat.is_connected()
+						if connected:
+							disconnected_since = None
+						else:
+							if disconnected_since is None:
+								disconnected_since = time.time()
+							# Si la lib n'arrive pas à se reconnecter en interne pendant un moment, on relance la session complète.
+							elif time.time() - disconnected_since >= 90:
+								logging.warning("Chat Twitch déconnecté depuis plus de 90s, redémarrage de la session")
+								break
+						await asyncio.sleep(2)
 				except Exception as e:
 					logging.error(f'Échec de l\'authentification Twitch : {e}')
 				finally:
@@ -318,7 +333,7 @@ class TwitchBot():
 					time.sleep(60)
 					continue
 				asyncio.run(self._connect())
-				logging.warning("Session Twitch terminée, reconnexion dans %ss", retry_delay)
+				logging.warning("Session Twitch perdue, reconnexion complète dans %ss", retry_delay)
 			except Exception as e:
 				logging.error("Déconnexion/erreur Twitch: %s", e)
 			with webapp.app_context():
