@@ -135,9 +135,9 @@
 		</div>
 	</div>
 
-	<div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-12 gap-4">
+	<div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
 		<!-- Colonne 1 : Live Twitch -->
-		<div class="2xl:col-span-4 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col 2xl:h-[640px]">
+		<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col 2xl:h-[640px]">
 			<div class="aspect-video bg-gray-900">
 				<iframe
 					src="https://player.twitch.tv/?channel={{ twitch_channel }}&enableExtensions=true&muted={{ 'false' if is_live else 'true' }}&parent={{ embed_parent }}&player=popout&quality=auto&volume={{ '0.5' if is_live else '0' }}"
@@ -172,7 +172,7 @@
 		</div>
 
 		<!-- Colonne 2 : Chat bot Twitch -->
-		<div class="2xl:col-span-3 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col 2xl:h-[640px]">
+		<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col 2xl:h-[640px]">
 
 		<!-- === Contenu du chat (commun live / hors live) === -->
 		<div class="px-4 py-3 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 flex items-center justify-between">
@@ -242,7 +242,7 @@
 		</div>
 
 		<!-- Colonne 3 : Chat Twitch (compte personnel) -->
-		<div class="2xl:col-span-3 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col 2xl:h-[640px]">
+		<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col 2xl:h-[640px]">
 			<div class="px-4 py-3 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 flex items-center justify-between">
 				<h3 class="font-semibold text-gray-900 dark:text-white">Chat Twitch (compte perso)</h3>
 				<a href="https://www.twitch.tv/{{ twitch_channel }}/chat" target="_blank" class="text-xs text-purple-600 dark:text-purple-400 hover:underline">Ouvrir</a>
@@ -256,8 +256,10 @@
 			</div>
 		</div>
 
-		<!-- Colonne 4 : Shoutbox modérateurs -->
-		<div class="2xl:col-span-2 section-card flex flex-col 2xl:h-[640px]">
+	</div>
+
+	<!-- Shoutbox modérateurs (pleine largeur pour lisibilité) -->
+	<div class="section-card flex flex-col" style="height: 340px;">
 		<div class="section-card-header flex items-center justify-between">
 			<div class="flex items-center gap-2">
 				<svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a2 2 0 01-2-2v-6a2 2 0 012-2h8z"></path></svg>
@@ -306,7 +308,6 @@
 				<button type="submit" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-medium transition-colors">Envoyer</button>
 			</form>
 		</div>
-	</div>
 	</div>
 
 	<!-- Commandes de modération & Logs -->
