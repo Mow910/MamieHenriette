@@ -16,6 +16,7 @@ def updateConfiguration():
 	checkboxes = {
 		'humble_bundle_enable': 'humble_bundle_channel',
 		'proton_db_enable_enable': 'proton_db_api_id',
+		'proton_db_twitch_enable': 'proton_db_api_id',
 		'moderation_enable': 'moderation_staff_role_ids',
 		'moderation_ban_enable': 'moderation_staff_role_ids',
 		'moderation_kick_enable': 'moderation_staff_role_ids',

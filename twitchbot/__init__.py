@@ -235,6 +235,9 @@ class TwitchBot():
 		async def cmd_multitwitch(msg): await moderation.multitwitch_command(msg, self.twitch)
 		async def cmd_permit(msg): await link_filter.permit_command(msg, self.twitch)
 
+		from twitchbot import protondb as protondb_twitch
+		async def cmd_pdb(msg): await protondb_twitch.protondb_command(msg)
+
 		self.chat.register_command('kick', cmd_timeout)
 		self.chat.register_command('to', cmd_timeout)
 		self.chat.register_command('timeout', cmd_timeout)
@@ -256,6 +259,8 @@ class TwitchBot():
 		self.chat.register_command('no_game', cmd_no_game)
 		self.chat.register_command('multitwitch', cmd_multitwitch)
 		self.chat.register_command('permit', cmd_permit)
+		self.chat.register_command('pdb', cmd_pdb)
+		self.chat.register_command('protondb', cmd_pdb)
 
 	async def _checkOnlineStreamers(self):
 		while True:

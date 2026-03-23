@@ -97,8 +97,31 @@
 				{% if configuration.getValue('proton_db_enable_enable') %}checked{% endif %}
 				class="w-5 h-5 rounded border-gray-300 dark:border-gray-600 text-purple-600 focus:ring-purple-500 dark:bg-gray-700">
 			<label for="proton_db_enable_enable" class="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer">
-				Activer la commande ProtonDB
+				Activer la commande ProtonDB sur Discord (<code class="px-1 py-0.5 bg-gray-200 dark:bg-gray-600 rounded text-xs">!pdb</code>)
 			</label>
+		</div>
+
+		<div class="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+			<input type="checkbox" name="proton_db_twitch_enable" id="proton_db_twitch_enable"
+				{% if configuration.getValue('proton_db_twitch_enable') %}checked{% endif %}
+				class="w-5 h-5 rounded border-gray-300 dark:border-gray-600 text-purple-600 focus:ring-purple-500 dark:bg-gray-700">
+			<label for="proton_db_twitch_enable" class="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer">
+				Activer la commande ProtonDB sur Twitch (<code class="px-1 py-0.5 bg-gray-200 dark:bg-gray-600 rounded text-xs">!pdb</code>)
+			</label>
+		</div>
+
+		<div>
+			<label for="proton_db_twitch_permission" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+				Permission minimale pour <code class="px-1 py-0.5 bg-gray-200 dark:bg-gray-600 rounded text-xs">!pdb</code> sur Twitch
+			</label>
+			<select name="proton_db_twitch_permission" id="proton_db_twitch_permission"
+				class="w-full sm:w-48 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all">
+				{% set current_perm = configuration.getValue('proton_db_twitch_permission') or 'viewer' %}
+				<option value="viewer"    {% if current_perm == 'viewer'    %}selected{% endif %}>👁️ Viewer (tout le monde)</option>
+				<option value="sub"       {% if current_perm == 'sub'       %}selected{% endif %}>⭐ Abonné (Sub)</option>
+				<option value="vip"       {% if current_perm == 'vip'       %}selected{% endif %}>💎 VIP</option>
+				<option value="moderator" {% if current_perm == 'moderator' %}selected{% endif %}>🛡️ Modérateur</option>
+			</select>
 		</div>
 		
 		<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
