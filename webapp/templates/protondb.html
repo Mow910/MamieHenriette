@@ -10,7 +10,7 @@
 	</div>
 </div>
 
-{% if configuration.getValue('proton_db_enable_enable') %}
+{% if configuration.getValue('proton_db_enable_enable') or configuration.getValue('proton_db_twitch_enable') %}
 <div class="mb-8">
 	<h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Alias de jeux</h2>
 	<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
