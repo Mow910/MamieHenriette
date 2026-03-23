@@ -110,18 +110,32 @@
 			</label>
 		</div>
 
-		<div>
-			<label for="proton_db_twitch_permission" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-				Permission minimale pour <code class="px-1 py-0.5 bg-gray-200 dark:bg-gray-600 rounded text-xs">!pdb</code> sur Twitch
-			</label>
-			<select name="proton_db_twitch_permission" id="proton_db_twitch_permission"
-				class="w-full sm:w-48 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all">
-				{% set current_perm = configuration.getValue('proton_db_twitch_permission') or 'viewer' %}
-				<option value="viewer"    {% if current_perm == 'viewer'    %}selected{% endif %}>👁️ Viewer (tout le monde)</option>
-				<option value="sub"       {% if current_perm == 'sub'       %}selected{% endif %}>⭐ Abonné (Sub)</option>
-				<option value="vip"       {% if current_perm == 'vip'       %}selected{% endif %}>💎 VIP</option>
-				<option value="moderator" {% if current_perm == 'moderator' %}selected{% endif %}>🛡️ Modérateur</option>
-			</select>
+		<div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+			<div>
+				<label for="proton_db_twitch_permission" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+					Permission minimale pour <code class="px-1 py-0.5 bg-gray-200 dark:bg-gray-600 rounded text-xs">!pdb</code> sur Twitch
+				</label>
+				<select name="proton_db_twitch_permission" id="proton_db_twitch_permission"
+					class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all">
+					{% set current_perm = configuration.getValue('proton_db_twitch_permission') or 'viewer' %}
+					<option value="viewer"    {% if current_perm == 'viewer'    %}selected{% endif %}>👁️ Viewer (tout le monde)</option>
+					<option value="sub"       {% if current_perm == 'sub'       %}selected{% endif %}>⭐ Abonné (Sub)</option>
+					<option value="vip"       {% if current_perm == 'vip'       %}selected{% endif %}>💎 VIP</option>
+					<option value="moderator" {% if current_perm == 'moderator' %}selected{% endif %}>🛡️ Modérateur</option>
+				</select>
+			</div>
+
+			<div>
+				<label for="proton_db_twitch_cooldown" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+					Cooldown entre deux <code class="px-1 py-0.5 bg-gray-200 dark:bg-gray-600 rounded text-xs">!pdb</code> (secondes)
+				</label>
+				<input type="number" name="proton_db_twitch_cooldown" id="proton_db_twitch_cooldown"
+					min="0" max="3600" step="1"
+					value="{{ configuration.getValue('proton_db_twitch_cooldown') or 0 }}"
+					class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+					placeholder="0"/>
+				<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">0 = pas de cooldown</p>
+			</div>
 		</div>
 		
 		<div class="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 
 from twitchAPI.chat import ChatMessage
 
@@ -7,6 +8,8 @@ from database.helpers import ConfigurationHelper
 from protondb import searhProtonDb
 from twitchbot import _user_has_twitch_permission
 from webapp import webapp
+
+_last_used: float = 0.0
 
 TIER_ICONS = {
 	'platinum': '✅ Platinum',
@@ -49,13 +52,23 @@ def _format_game_response(game: dict) -> str:
 
 
 async def protondb_command(msg: ChatMessage):
+	global _last_used
 	with webapp.app_context():
 		if not ConfigurationHelper().getValue('proton_db_twitch_enable'):
 			return
 		permission = ConfigurationHelper().getValue('proton_db_twitch_permission') or 'viewer'
+		cooldown = int(ConfigurationHelper().getValue('proton_db_twitch_cooldown') or 0)
 
 	if not _user_has_twitch_permission(msg, permission):
 		return
+
+	if cooldown > 0:
+		elapsed = time.time() - _last_used
+		if elapsed < cooldown:
+			remaining = int(cooldown - elapsed)
+			await msg.reply(f"@{msg.user.name} La commande !pdb est en cooldown, réessaie dans {remaining}s.")
+			return
+	_last_used = time.time()
 
 	text = msg.text
 	for prefix in ('!protondb', '!pdb'):
