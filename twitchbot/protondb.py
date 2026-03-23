@@ -68,10 +68,13 @@ async def protondb_command(msg: ChatMessage):
 		await msg.reply(f"@{msg.user.name} Utilisation : !pdb <nom du jeu>  Exemple : !pdb Elden Ring")
 		return
 
+	def _search():
+		with webapp.app_context():
+			return searhProtonDb(name)
+
 	try:
 		loop = asyncio.get_event_loop()
-		with webapp.app_context():
-			games = await loop.run_in_executor(None, searhProtonDb, name)
+		games = await loop.run_in_executor(None, _search)
 	except Exception as e:
 		logging.error(f'Erreur ProtonDB Twitch pour "{name}": {e}')
 		await msg.reply(f"@{msg.user.name} Erreur lors de la recherche ProtonDB.")
