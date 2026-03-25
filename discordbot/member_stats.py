@@ -1,5 +1,6 @@
 """Compteurs messages / vocal par membre pour la webapp (table guild_member_stats)."""
 import asyncio
+import concurrent.futures
 import logging
 from datetime import datetime, timezone
 
@@ -114,9 +115,14 @@ async def fetch_guild_members_snapshot(bot: discord.Client, guild_id: int | None
 				{"guilds": [{"id": g.id, "name": g.name} for g in guilds]},
 			)
 	try:
-		await chosen.chunk(cache=True)
+		await asyncio.wait_for(chosen.chunk(cache=True), timeout=120.0)
+	except asyncio.TimeoutError:
+		logger.warning(
+			"guild.chunk timeout (%s), suite avec le cache membres partiel",
+			chosen.name,
+		)
 	except Exception as e:
-		logger.warning("guild.chunk: %s", e)
+		logger.warning("guild.chunk: %s", e, exc_info=True)
 	members_out = []
 	for m in chosen.members:
 		if m.bot:
@@ -144,17 +150,34 @@ async def fetch_guild_members_snapshot(bot: discord.Client, guild_id: int | None
 	}
 
 
-def get_discord_members_snapshot_sync(bot: discord.Client, guild_id: int | None = None, timeout: float = 90.0) -> tuple[bool, str | None, dict]:
+def get_discord_members_snapshot_sync(bot: discord.Client, guild_id: int | None = None, timeout: float = 180.0) -> tuple[bool, str | None, dict]:
 	"""Appel thread-safe depuis Flask (run_coroutine_threadsafe sur la boucle du bot)."""
-	if bot.loop is None or not bot.is_ready():
-		return False, "Bot Discord non connecté.", {}
+	loop = getattr(bot, "loop", None)
+	if loop is None:
+		logger.error("get_discord_members_snapshot_sync: bot.loop est None (bot non démarré ?)")
+		return False, "Bot Discord non démarré (aucune boucle événements).", {}
+	if not bot.is_ready():
+		return False, "Bot Discord pas encore prêt (connexion en cours). Réessayez dans quelques secondes.", {}
 	try:
 		future = asyncio.run_coroutine_threadsafe(
 			fetch_guild_members_snapshot(bot, guild_id),
-			bot.loop,
+			loop,
 		)
 		ok, err, payload = future.result(timeout=timeout)
 		return ok, err, payload
+	except (concurrent.futures.TimeoutError, TimeoutError) as e:
+		logger.error(
+			"get_discord_members_snapshot_sync: délai dépassé après %.0fs (%s)",
+			timeout,
+			type(e).__name__,
+			exc_info=True,
+		)
+		return (
+			False,
+			"Délai dépassé pendant le chargement des membres (serveur volumineux ou bot occupé). Réessayez dans un instant.",
+			{},
+		)
 	except Exception as e:
-		logger.error("get_discord_members_snapshot_sync: %s", e)
-		return False, str(e), {}
+		logger.exception("get_discord_members_snapshot_sync: %s", type(e).__name__)
+		msg = str(e) if str(e) else repr(e)
+		return False, msg or "Erreur lors de l’appel au bot Discord.", {}

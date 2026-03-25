@@ -1,7 +1,7 @@
 from collections import defaultdict
 from datetime import datetime
 
-from flask import render_template, request
+from flask import redirect, render_template, request, url_for
 from sqlalchemy import text
 
 from webapp import webapp
@@ -69,6 +69,13 @@ def _load_sanctions_by_user(user_ids: list[str]) -> dict[str, list]:
 	for uid in by_user:
 		by_user[uid].sort(key=lambda x: x.created_at or datetime.min, reverse=True)
 	return by_user
+
+
+@webapp.route("/discord-members")
+@webapp.route("/discord-members.html")
+def discord_members_redirect():
+	"""Redirection : l’URL réelle de la page est /discord-membres (route Flask, pas un fichier .html)."""
+	return redirect(url_for("discord_members", **request.args), code=302)
 
 
 @webapp.route("/discord-membres")
