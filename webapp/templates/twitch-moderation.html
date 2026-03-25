@@ -90,45 +90,45 @@
 			<h1 class="text-xl font-bold text-gray-900 dark:text-white leading-tight">Modération Twitch</h1>
 			<p class="text-sm text-gray-600 dark:text-gray-400 mt-0.5">Commandes et logs de modération pour {{ twitch_channel }}</p>
 		</div>
-		<div class="flex flex-wrap gap-1.5 sm:gap-2 lg:justify-end lg:max-w-[min(100%,40rem)] lg:flex-shrink-0">
-			<!-- Diffusion : live / hors ligne (compact, aligné au titre) -->
-			<div class="flex flex-1 min-w-[128px] max-w-full sm:flex-initial sm:max-w-[11.5rem] items-center gap-1.5 rounded-md border shadow-sm px-2 py-1.5 {{ 'border-violet-200/80 dark:border-violet-500/25 bg-gradient-to-br from-violet-50/90 to-white dark:from-violet-950/40 dark:to-gray-900/90' if is_live else 'border-indigo-200/60 dark:border-indigo-400/20 bg-gradient-to-br from-slate-100/90 to-indigo-50/50 dark:from-slate-800/80 dark:to-indigo-950/40' }}">
-				<div class="p-1 rounded shrink-0 {{ 'bg-violet-500/15 dark:bg-violet-500/20' if is_live else 'bg-indigo-500/10 dark:bg-indigo-400/15' }}">
+		<div class="flex flex-wrap gap-1 sm:gap-1.5 lg:justify-end lg:max-w-[min(100%,36rem)] lg:flex-shrink-0">
+			<!-- Diffusion : live / hors ligne (ultra-compact) -->
+			<div class="flex flex-1 min-w-[108px] max-w-full sm:flex-initial sm:max-w-[9.75rem] items-center gap-1 rounded border shadow-sm px-1.5 py-1 {{ 'border-violet-200/80 dark:border-violet-500/25 bg-gradient-to-br from-violet-50/90 to-white dark:from-violet-950/40 dark:to-gray-900/90' if is_live else 'border-indigo-200/60 dark:border-indigo-400/20 bg-gradient-to-br from-slate-100/90 to-indigo-50/50 dark:from-slate-800/80 dark:to-indigo-950/40' }}">
+				<div class="p-0.5 rounded shrink-0 {{ 'bg-violet-500/15 dark:bg-violet-500/20' if is_live else 'bg-indigo-500/10 dark:bg-indigo-400/15' }}">
 					{% if is_live %}
-					<svg class="w-3 h-3 text-violet-600 dark:text-violet-400" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"></path></svg>
+					<svg class="w-2.5 h-2.5 text-violet-600 dark:text-violet-400" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"></path></svg>
 					{% else %}
-					<svg class="w-3 h-3 text-indigo-500 dark:text-indigo-300 tm-offline-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+					<svg class="w-2.5 h-2.5 text-indigo-500 dark:text-indigo-300 tm-offline-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.25" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
 					{% endif %}
 				</div>
-				<div class="min-w-0 flex-1">
-					<h3 class="font-semibold text-gray-900 dark:text-white text-[11px] leading-tight tracking-tight">{{ 'En direct' if is_live else 'Hors ligne' }}</h3>
+				<div class="min-w-0 flex-1 leading-none">
+					<h3 class="font-semibold text-gray-900 dark:text-white text-[10px] leading-none tracking-tight">{{ 'En direct' if is_live else 'Hors ligne' }}</h3>
 					{% if is_live %}
-					<p class="text-[10px] text-gray-600 dark:text-gray-300 mt-0.5 line-clamp-1 leading-tight" title="{{ stream_title or '' }}">{{ stream_title or 'Sans titre' }}</p>
+					<p class="text-[9px] text-gray-600 dark:text-gray-300 mt-px line-clamp-1 leading-tight" title="{{ stream_title or '' }}">{{ stream_title or 'Sans titre' }}</p>
 					{% else %}
-					<p class="text-[10px] text-indigo-600/80 dark:text-indigo-300/80 mt-0.5 leading-tight">Repos — à bientôt sur Twitch</p>
+					<p class="text-[9px] text-indigo-600/80 dark:text-indigo-300/80 mt-px line-clamp-1 leading-tight" title="Repos — à bientôt sur Twitch">À bientôt</p>
 					{% endif %}
 				</div>
-				<a href="https://www.twitch.tv/{{ twitch_channel }}" target="_blank" rel="noopener noreferrer" class="text-[10px] text-purple-600 dark:text-purple-400 hover:underline shrink-0" title="Ouvrir la chaîne Twitch">Chaîne</a>
+				<a href="https://www.twitch.tv/{{ twitch_channel }}" target="_blank" rel="noopener noreferrer" class="text-[9px] text-purple-600 dark:text-purple-400 hover:underline shrink-0 leading-none" title="Ouvrir la chaîne Twitch">Chaîne</a>
 			</div>
-			<div class="flex flex-1 min-w-[128px] max-w-full sm:flex-initial sm:max-w-[10rem] items-center gap-1.5 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1.5 shadow-sm">
-				<div class="p-1 rounded shrink-0 {{ 'bg-green-100 dark:bg-green-900/30' if link_filter_enabled else 'bg-gray-100 dark:bg-gray-700' }}">
-					<svg class="w-3 h-3 {{ 'text-green-600 dark:text-green-400' if link_filter_enabled else 'text-gray-500' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+			<div class="flex flex-1 min-w-[108px] max-w-full sm:flex-initial sm:max-w-[8.75rem] items-center gap-1 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1.5 py-1 shadow-sm">
+				<div class="p-0.5 rounded shrink-0 {{ 'bg-green-100 dark:bg-green-900/30' if link_filter_enabled else 'bg-gray-100 dark:bg-gray-700' }}">
+					<svg class="w-2.5 h-2.5 {{ 'text-green-600 dark:text-green-400' if link_filter_enabled else 'text-gray-500' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.25" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
 				</div>
-				<div class="min-w-0 flex-1">
-					<h3 class="font-semibold text-gray-900 dark:text-white text-[11px] leading-tight">Filtre liens</h3>
-					<p class="text-[10px] text-gray-500 dark:text-gray-400">{{ 'Actif' if link_filter_enabled else 'Inactif' }}</p>
+				<div class="min-w-0 flex-1 leading-none">
+					<h3 class="font-semibold text-gray-900 dark:text-white text-[10px] leading-none">Filtre liens</h3>
+					<p class="text-[9px] text-gray-500 dark:text-gray-400 mt-px">{{ 'Actif' if link_filter_enabled else 'Inactif' }}</p>
 				</div>
-				<a href="{{ url_for('link_filter') }}" class="text-[10px] text-purple-600 dark:text-purple-400 hover:underline shrink-0">Réglages</a>
+				<a href="{{ url_for('link_filter') }}" class="text-[9px] text-purple-600 dark:text-purple-400 hover:underline shrink-0 leading-none">Réglages</a>
 			</div>
-			<div class="flex flex-1 min-w-[128px] max-w-full sm:flex-initial sm:max-w-[10rem] items-center gap-1.5 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1.5 shadow-sm">
-				<div class="p-1 rounded shrink-0 {{ 'bg-orange-100 dark:bg-orange-900/30' if banned_words else 'bg-gray-100 dark:bg-gray-700' }}">
-					<svg class="w-3 h-3 {{ 'text-orange-600 dark:text-orange-400' if banned_words else 'text-gray-500' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>
+			<div class="flex flex-1 min-w-[108px] max-w-full sm:flex-initial sm:max-w-[8.75rem] items-center gap-1 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1.5 py-1 shadow-sm">
+				<div class="p-0.5 rounded shrink-0 {{ 'bg-orange-100 dark:bg-orange-900/30' if banned_words else 'bg-gray-100 dark:bg-gray-700' }}">
+					<svg class="w-2.5 h-2.5 {{ 'text-orange-600 dark:text-orange-400' if banned_words else 'text-gray-500' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.25" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>
 				</div>
-				<div class="min-w-0 flex-1">
-					<h3 class="font-semibold text-gray-900 dark:text-white text-[11px] leading-tight">Mots interdits</h3>
-					<p class="text-[10px] text-gray-500 dark:text-gray-400">{{ banned_words|length }} actif{{ 's' if banned_words|length != 1 else '' }}</p>
+				<div class="min-w-0 flex-1 leading-none">
+					<h3 class="font-semibold text-gray-900 dark:text-white text-[10px] leading-none">Mots interdits</h3>
+					<p class="text-[9px] text-gray-500 dark:text-gray-400 mt-px">{{ banned_words|length }} actif{{ 's' if banned_words|length != 1 else '' }}</p>
 				</div>
-				<a href="#section-mots-interdits" class="text-[10px] text-purple-600 dark:text-purple-400 hover:underline shrink-0">Liste</a>
+				<a href="#section-mots-interdits" class="text-[9px] text-purple-600 dark:text-purple-400 hover:underline shrink-0 leading-none">Liste</a>
 			</div>
 		</div>
 	</div>
