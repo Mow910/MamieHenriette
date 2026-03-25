@@ -63,6 +63,12 @@ PAGE_METADATA = {
 		"description": "Historique de modération Discord",
 		"icon": "shield"
 	},
+	"discord_members": {
+		"label": "Membres Discord",
+		"category": "moderation",
+		"description": "Liste des membres, activité et sanctions",
+		"icon": "users"
+	},
 	"twitch_moderation": {
 		"label": "Modération Twitch",
 		"category": "moderation",
@@ -158,6 +164,7 @@ PAGE_KEYS = [
 	("protondb", "ProtonDB"),
 	("freeloot", "FreeLoot"),
 	("moderation", "Modération Discord"),
+	("discord_members", "Membres Discord"),
 	("users", "Utilisateurs"),
 	("settings", "Paramètres"),
 ]

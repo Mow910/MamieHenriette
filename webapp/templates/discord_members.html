@@ -1,0 +1,153 @@
+{% extends "template.html" %}
+
+{% block content %}
+<div class="mb-6">
+	<h1 class="text-2xl font-semibold text-slate-800 dark:text-white mb-1">Membres Discord</h1>
+	<p class="text-sm text-slate-600 dark:text-slate-400">
+		Rapport par membre : arrivée sur le serveur, invitation enregistrée, activité (messages et vocal depuis le suivi activé) et sanctions.
+	</p>
+	{% if guild_name %}
+	<p class="text-sm font-medium text-primary-600 dark:text-primary-400 mt-1">{{ guild_name }}</p>
+	{% endif %}
+</div>
+
+{% if not bot_connected %}
+<div class="mb-6 rounded-lg border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 text-sm text-amber-900 dark:text-amber-200">
+	Le bot Discord semble déconnecté : la liste des membres peut être indisponible ou incomplète.
+</div>
+{% endif %}
+
+{% if load_error %}
+<div class="mb-6 rounded-lg border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 px-4 py-3 text-sm text-red-800 dark:text-red-200">
+	{{ load_error }}
+	{% if guild_choices %}
+	<ul class="mt-3 space-y-2">
+		{% for g in guild_choices %}
+		<li>
+			<a href="{{ url_for('discord_members', guild_id=g.id) }}" class="font-medium text-primary-600 dark:text-primary-400 hover:underline">{{ g.name }}</a>
+			<span class="text-slate-500 dark:text-slate-400 font-mono text-xs ml-2">({{ g.id }})</span>
+		</li>
+		{% endfor %}
+	</ul>
+	{% endif %}
+</div>
+{% endif %}
+
+{% if not load_error and members|length == 0 and not guild_choices %}
+<div class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-5 py-8 text-center text-slate-500 dark:text-slate-400 text-sm">
+	Aucun membre humain à afficher sur ce serveur.
+</div>
+{% endif %}
+
+{% if members %}
+<div class="mb-4 flex flex-col sm:flex-row sm:items-center gap-3">
+	<label class="sr-only" for="member-search">Rechercher un membre</label>
+	<input type="search" id="member-search" placeholder="Rechercher par nom ou ID…" autocomplete="off"
+		class="w-full sm:max-w-md rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-800 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-primary-500 focus:border-primary-500" />
+	<p class="text-xs text-slate-500 dark:text-slate-400">
+		Les compteurs <strong>messages</strong> et <strong>vocal</strong> sont cumulés à partir du déploiement du suivi (pas d’historique rétroactif). L’invitation provient du message de bienvenue si celui-ci était activé au moment du join.
+	</p>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+	{% for m in members %}
+	<div data-member-card data-search="{{ m.search_blob }}" class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+		<div class="p-4 flex gap-4">
+			<img src="{{ m.avatar_url }}" alt="" width="64" height="64" class="w-16 h-16 rounded-full flex-shrink-0 ring-2 ring-slate-200 dark:ring-slate-600 object-cover" loading="lazy" />
+			<div class="min-w-0 flex-1">
+				<div class="flex items-start justify-between gap-2">
+					<div class="min-w-0">
+						<h2 class="text-base font-semibold text-slate-900 dark:text-white truncate">{{ m.display_name }}</h2>
+						<p class="text-xs text-slate-500 dark:text-slate-400 font-mono truncate">@{{ m.name }} · {{ m.id }}</p>
+					</div>
+					{% if m.sanction_count > 0 %}
+					<span class="flex-shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200">{{ m.sanction_count }} sanction{% if m.sanction_count > 1 %}s{% endif %}</span>
+					{% endif %}
+				</div>
+				<div class="mt-3 flex flex-wrap gap-2">
+					<span class="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200">
+						<svg class="w-3.5 h-3.5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+						{{ m.message_count }} msg
+					</span>
+					<span class="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-violet-100 dark:bg-violet-900/40 text-violet-800 dark:text-violet-200">
+						<svg class="w-3.5 h-3.5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+						{{ m.voice_label }}
+					</span>
+					{% if m.joined_display != '—' %}
+					<span class="inline-flex items-center text-xs px-2 py-1 rounded-md bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200" title="Membre depuis">{{ m.joined_display }}</span>
+					{% endif %}
+				</div>
+			</div>
+		</div>
+		<details class="group border-t border-slate-200 dark:border-slate-700">
+			<summary class="px-4 py-3 cursor-pointer text-sm font-medium text-primary-600 dark:text-primary-400 hover:bg-slate-50 dark:hover:bg-slate-700/40 flex items-center justify-between list-none">
+				<span>Rapport détaillé</span>
+				<svg class="w-4 h-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+			</summary>
+			<div class="px-4 pb-4 pt-0 space-y-4 text-sm">
+				<dl class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-slate-600 dark:text-slate-300">
+					<div>
+						<dt class="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500">Pseudo serveur</dt>
+						<dd>{{ m.nick or '—' }}</dd>
+					</div>
+					<div>
+						<dt class="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500">Arrivée (Discord)</dt>
+						<dd>{{ m.joined_display }}</dd>
+					</div>
+					<div>
+						<dt class="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500">Invitation (DB)</dt>
+						<dd><code class="text-xs bg-slate-100 dark:bg-slate-700 px-1 rounded">{{ m.invite_code }}</code></dd>
+					</div>
+					<div>
+						<dt class="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500">Invité par</dt>
+						<dd>{{ m.inviter_name }}</dd>
+					</div>
+					<div class="sm:col-span-2">
+						<dt class="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500">Date join enregistrée (welcome)</dt>
+						<dd>{{ m.invite_join_date }}</dd>
+					</div>
+					<div class="sm:col-span-2">
+						<dt class="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500">Rôles</dt>
+						<dd class="text-xs leading-relaxed">{{ m.roles }}</dd>
+					</div>
+				</dl>
+				{% if m.sanctions %}
+				<div>
+					<h3 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Sanctions</h3>
+					<ul class="space-y-2 max-h-48 overflow-y-auto">
+						{% for s in m.sanctions %}
+						<li class="rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-slate-50 dark:bg-slate-900/50">
+							<div class="flex flex-wrap items-baseline justify-between gap-2">
+								<span class="font-medium text-slate-800 dark:text-slate-200">{{ s.type }}</span>
+								<span class="text-xs text-slate-500">{{ s.created_at }}</span>
+							</div>
+							<p class="text-xs text-slate-600 dark:text-slate-400 mt-1">{{ s.reason }}</p>
+							<p class="text-xs text-slate-500 mt-1">Par {{ s.staff_name }}{% if s.duration is not none %} · durée {{ s.duration }}s{% endif %}</p>
+						</li>
+						{% endfor %}
+					</ul>
+				</div>
+				{% else %}
+				<p class="text-xs text-slate-500 dark:text-slate-400">Aucune sanction enregistrée en base pour ce membre.</p>
+				{% endif %}
+			</div>
+		</details>
+	</div>
+	{% endfor %}
+</div>
+
+<script>
+(function() {
+	var input = document.getElementById('member-search');
+	if (!input) return;
+	input.addEventListener('input', function() {
+		var q = (input.value || '').toLowerCase().trim();
+		document.querySelectorAll('[data-member-card]').forEach(function(el) {
+			var blob = (el.getAttribute('data-search') || '').toLowerCase();
+			el.style.display = !q || blob.indexOf(q) !== -1 ? '' : 'none';
+		});
+	});
+})();
+</script>
+{% endif %}
+{% endblock %}

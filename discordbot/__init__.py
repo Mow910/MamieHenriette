@@ -29,6 +29,7 @@ from discordbot.welcome import sendWelcomeMessage, sendLeaveMessage, updateInvit
 from discordbot.patreon import checkPatreonPosts
 from discordbot.youtube import checkYouTubeVideos
 from discordbot.auto_rooms import on_voice_state_update_auto_rooms, on_raw_reaction_add_auto_rooms, on_message_auto_rooms, cleanup_orphaned_auto_rooms
+from discordbot.member_stats import record_message, on_voice_state_update_track_voice
 from protondb import searhProtonDb
 
 class DiscordBot(discord.Client):
@@ -167,7 +168,10 @@ async def on_message(message: Message):
 	
 	# Gestion des messages dans les auto rooms (avant le check des commandes !)
 	await on_message_auto_rooms(bot, message)
-	
+
+	if message.guild and not message.author.bot:
+		record_message(message.guild.id, message.author.id)
+
 	if not message.content.startswith('!'):
 		return
 	command_name = message.content.split()[0]
@@ -331,6 +335,7 @@ async def on_message(message: Message):
 @bot.event
 async def on_voice_state_update(member: Member, before, after):
 	await on_voice_state_update_auto_rooms(bot, member, before, after)
+	on_voice_state_update_track_voice(member, before, after)
 
 @bot.event
 async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
