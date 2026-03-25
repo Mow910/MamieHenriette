@@ -30,11 +30,12 @@ from discordbot.patreon import checkPatreonPosts
 from discordbot.youtube import checkYouTubeVideos
 from discordbot.auto_rooms import on_voice_state_update_auto_rooms, on_raw_reaction_add_auto_rooms, on_message_auto_rooms, cleanup_orphaned_auto_rooms
 from discordbot.member_stats import record_message, on_voice_state_update_track_voice
+from discordbot.rate_limit_logging import build_discord_http_trace_config
 from protondb import searhProtonDb
 
 class DiscordBot(discord.Client):
 	def __init__(self, *, intents: discord.Intents):
-		super().__init__(intents=intents)
+		super().__init__(intents=intents, http_trace=build_discord_http_trace_config())
 		self.tree = app_commands.CommandTree(self)
 		self.synced = False
 	

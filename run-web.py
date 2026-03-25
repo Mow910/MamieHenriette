@@ -55,6 +55,8 @@ if __name__ == '__main__':
     # Calmer les logs verbeux de certaines libs si besoin
     logging.getLogger('werkzeug').setLevel(logging.WARNING)
     logging.getLogger('discord').setLevel(logging.WARNING)
+    # 429 : en-têtes X-RateLimit-* (voir discordbot/rate_limit_logging.py + doc Discord rate limits)
+    logging.getLogger('discord.ratelimit_headers').setLevel(logging.WARNING)
 
     # Hook exceptions non-capturées (threads inclus)
     def _log_uncaught(exc_type, exc, tb):
