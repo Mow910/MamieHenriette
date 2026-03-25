@@ -20,7 +20,16 @@
 		<span class="text-sm font-semibold text-gray-200">Shoutbox Modos</span>
 		<span class="text-xs text-gray-500" id="shoutboxCount"></span>
 	</div>
-	<div class="flex items-center gap-3">
+	<div class="flex items-center gap-3 flex-wrap justify-end">
+		<div class="flex items-center gap-1.5">
+			<button type="button" onclick="shoutboxFontSize(-1)" class="text-gray-400 hover:text-white text-xs leading-none px-1" title="Réduire la police">A-</button>
+			<span class="text-gray-500 text-xs tabular-nums min-w-[1.25rem] text-center" id="shoutboxFontLabel">14</span>
+			<button type="button" onclick="shoutboxFontSize(1)" class="text-gray-400 hover:text-white text-xs leading-none px-1" title="Agrandir la police">A+</button>
+		</div>
+		<button type="button" onclick="toggleShoutboxSound()" id="shoutboxSoundBtn" class="text-xs flex items-center gap-1 text-green-400 hover:text-green-300" title="Son activé">
+			<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072M17.95 6.05a8 8 0 010 11.9M11 5L6 9H2v6h4l5 4V5z"></path></svg>
+			<span id="shoutboxSoundLabel">Son</span>
+		</button>
 		<div id="onlineIndicator" class="flex items-center gap-1.5 text-xs text-gray-400">
 			<span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
 			<span id="onlineCountText">0 en ligne</span>
@@ -30,7 +39,7 @@
 
 <div class="flex flex-1 overflow-hidden">
 	<div class="flex-1 relative">
-		<div class="absolute inset-0 overflow-y-auto font-mono text-xs p-2" id="shoutboxDisplay" style="scrollbar-width: thin;">
+		<div class="absolute inset-0 overflow-y-auto font-mono p-2" id="shoutboxDisplay" style="scrollbar-width: thin;">
 			<div class="text-gray-500 text-center py-4" id="shoutboxPlaceholder">Aucun message</div>
 		</div>
 		<button id="newMsgBtn" onclick="scrollToBottom()" class="hidden absolute bottom-2 left-1/2 -translate-x-1/2 z-10 px-3 py-1 rounded-full bg-indigo-600/90 hover:bg-indigo-500 text-white text-xs font-medium shadow-lg animate-pulse flex items-center gap-1.5 backdrop-blur-sm">
@@ -60,24 +69,56 @@ var knownIds = new Set();
 var lastTimestamp = '';
 var autoScroll = true;
 var tabVisible = true;
-var audioCtx = null;
+var shoutboxAudioCtx = null;
 var unreadCount = 0;
+var shoutboxSoundEnabled = localStorage.getItem('shoutbox_sound') !== 'off';
+var shoutboxFontSizePx = parseInt(localStorage.getItem('shoutbox_fontsize'), 10);
+if (isNaN(shoutboxFontSizePx)) shoutboxFontSizePx = 14;
 
 document.addEventListener('visibilitychange', function() { tabVisible = !document.hidden; });
 
-function beep() {
+function shoutboxApplyFontSize() {
+	var display = document.getElementById('shoutboxDisplay');
+	if (display) display.style.fontSize = shoutboxFontSizePx + 'px';
+	var label = document.getElementById('shoutboxFontLabel');
+	if (label) label.textContent = shoutboxFontSizePx;
+	localStorage.setItem('shoutbox_fontsize', String(shoutboxFontSizePx));
+}
+
+function shoutboxFontSize(delta) {
+	shoutboxFontSizePx = Math.max(8, Math.min(20, shoutboxFontSizePx + delta));
+	shoutboxApplyFontSize();
+}
+
+function shoutboxUpdateSoundUI() {
+	var btn = document.getElementById('shoutboxSoundBtn');
+	if (!btn) return;
+	btn.className = 'text-xs flex items-center gap-1 ' + (shoutboxSoundEnabled ? 'text-green-400 hover:text-green-300' : 'text-red-400 hover:text-red-300');
+	btn.title = shoutboxSoundEnabled ? 'Son activé (nouveaux messages si fenêtre en arrière-plan)' : 'Son désactivé';
+	var lab = document.getElementById('shoutboxSoundLabel');
+	if (lab) lab.textContent = shoutboxSoundEnabled ? 'Son' : 'Muet';
+}
+
+function toggleShoutboxSound() {
+	shoutboxSoundEnabled = !shoutboxSoundEnabled;
+	localStorage.setItem('shoutbox_sound', shoutboxSoundEnabled ? 'on' : 'off');
+	shoutboxUpdateSoundUI();
+}
+
+function shoutboxBeep() {
+	if (!shoutboxSoundEnabled) return;
 	try {
-		if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-		var osc = audioCtx.createOscillator();
-		var gain = audioCtx.createGain();
+		if (!shoutboxAudioCtx) shoutboxAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+		var osc = shoutboxAudioCtx.createOscillator();
+		var gain = shoutboxAudioCtx.createGain();
 		osc.connect(gain);
-		gain.connect(audioCtx.destination);
+		gain.connect(shoutboxAudioCtx.destination);
 		osc.frequency.value = 660;
 		osc.type = 'sine';
-		gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
-		gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
-		osc.start(audioCtx.currentTime);
-		osc.stop(audioCtx.currentTime + 0.3);
+		gain.gain.setValueAtTime(0.15, shoutboxAudioCtx.currentTime);
+		gain.gain.exponentialRampToValueAtTime(0.001, shoutboxAudioCtx.currentTime + 0.3);
+		osc.start(shoutboxAudioCtx.currentTime);
+		osc.stop(shoutboxAudioCtx.currentTime + 0.3);
 	} catch(e) {}
 }
 
@@ -150,7 +191,7 @@ function addItem(item) {
 	}
 
 	display.appendChild(line);
-	if (!tabVisible) beep();
+	if (!tabVisible) shoutboxBeep();
 	while (display.children.length > 200) display.removeChild(display.firstChild);
 	if (autoScroll) {
 		display.scrollTop = display.scrollHeight;
@@ -242,6 +283,9 @@ document.getElementById('shoutboxDisplay').addEventListener('scroll', function()
 		if (btn) btn.classList.add('hidden');
 	}
 });
+
+shoutboxApplyFontSize();
+shoutboxUpdateSoundUI();
 
 setInterval(poll, 3000);
 poll();
