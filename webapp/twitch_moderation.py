@@ -5,7 +5,31 @@ from database import db
 from database.models import Commande, TwitchModerationLog, TwitchLinkFilter, TwitchBannedWord, ModShoutboxMessage
 from flask_login import current_user
 from database.helpers import ConfigurationHelper
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+
+def _format_stream_uptime(started_at_iso):
+    """Durée depuis le début du live (texte court pour le panneau)."""
+    if not started_at_iso:
+        return None
+    try:
+        s = str(started_at_iso).replace("Z", "+00:00")
+        started = datetime.fromisoformat(s)
+        if started.tzinfo is None:
+            started = started.replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
+        sec = int((now - started).total_seconds())
+        if sec < 0:
+            return None
+        h, sec = divmod(sec, 3600)
+        m, sec = divmod(sec, 60)
+        if h > 0:
+            return f"{h}h {m}min"
+        if m > 0:
+            return f"{m} min"
+        return "< 1 min"
+    except (ValueError, TypeError):
+        return None
 import asyncio
 
 MODERATION_COMMANDS = [
@@ -139,7 +163,8 @@ def twitch_moderation():
     stream_title = bot_status.get("twitch_stream_title", "")
     game_name = bot_status.get("twitch_game_name", "")
     started_at = bot_status.get("twitch_started_at")
-    
+    stream_uptime = _format_stream_uptime(started_at) if is_live else None
+
     return render_template(
         "twitch-moderation.html",
         commands=MODERATION_COMMANDS,
@@ -155,6 +180,7 @@ def twitch_moderation():
         stream_title=stream_title,
         game_name=game_name,
         started_at=started_at,
+        stream_uptime=stream_uptime,
     )
 
 @webapp.route("/twitch-moderation/logs/clear")
