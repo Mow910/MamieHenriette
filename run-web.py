@@ -2,6 +2,7 @@ import locale
 import logging
 import threading
 import os
+import time
 from logging.handlers import RotatingFileHandler
 
 from webapp import webapp
@@ -37,6 +38,20 @@ if __name__ == '__main__':
     handlers.append(file_handler)
     logging.basicConfig(level=logging.INFO, handlers=handlers)
 
+    # Éviter les doublons de lignes discord (ex. discord.http sans [thread] puis avec) :
+    # discord.py peut attacher des handlers avant basicConfig ; on ne garde que la propagation vers la racine.
+    for _name in (
+        'discord',
+        'discord.client',
+        'discord.http',
+        'discord.gateway',
+        'discord.state',
+        'discord.webhook',
+    ):
+        _lg = logging.getLogger(_name)
+        _lg.handlers.clear()
+        _lg.propagate = True
+
     # Calmer les logs verbeux de certaines libs si besoin
     logging.getLogger('werkzeug').setLevel(logging.WARNING)
     logging.getLogger('discord').setLevel(logging.WARNING)
@@ -53,12 +68,15 @@ if __name__ == '__main__':
 
     locale.setlocale(locale.LC_TIME, 'fr_FR.UTF-8')
 
-    jobs = []
-    jobs.append(threading.Thread(target=start_discord_bot, name='discord-bot'))
-    jobs.append(threading.Thread(target=start_server, name='web-server'))
-    jobs.append(threading.Thread(target=start_twitch_bot, name='twitch-bot'))
+    t_discord = threading.Thread(target=start_discord_bot, name='discord-bot')
+    t_web = threading.Thread(target=start_server, name='web-server')
+    t_twitch = threading.Thread(target=start_twitch_bot, name='twitch-bot')
 
-    for job in jobs:
-        job.start()
-    for job in jobs:
+    # Démarrer Discord en premier : le 429 sur GET /users/@me est souvent un pic au login ;
+    # lancer Waitress + Twitch quelques secondes après évite la concurrence au tout début.
+    t_discord.start()
+    time.sleep(3)
+    t_web.start()
+    t_twitch.start()
+    for job in (t_discord, t_web, t_twitch):
         job.join()
