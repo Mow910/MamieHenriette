@@ -260,12 +260,3 @@ class ModShoutboxMessage(db.Model):
 	message = db.Column(db.String(500), nullable=False)
 	created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
-
-class GuildMemberStats(db.Model):
-	__tablename__ = 'guild_member_stats'
-	guild_id = db.Column(db.String(64), primary_key=True)
-	user_id = db.Column(db.String(64), primary_key=True)
-	message_count = db.Column(db.Integer, nullable=False, default=0)
-	voice_seconds = db.Column(db.Integer, nullable=False, default=0)
-	updated_at = db.Column(db.DateTime, nullable=True)
-

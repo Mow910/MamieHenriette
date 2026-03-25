@@ -227,31 +227,6 @@ def _doAddColumnMigrations(cursor: Cursor):
 		except Exception as e:
 			logging.warning(f"Table webapp_page_permission: {e}")
 
-	if not _tableExists('guild_member_stats', cursor):
-		try:
-			cursor.execute("""
-				CREATE TABLE guild_member_stats (
-					guild_id VARCHAR(64) NOT NULL,
-					user_id VARCHAR(64) NOT NULL,
-					message_count INTEGER NOT NULL DEFAULT 0,
-					voice_seconds INTEGER NOT NULL DEFAULT 0,
-					updated_at DATETIME,
-					PRIMARY KEY (guild_id, user_id)
-				)
-			""")
-			logging.info("Table guild_member_stats créée")
-		except Exception as e:
-			logging.warning(f"Table guild_member_stats: {e}")
-
-	if _tableExists("webapp_page_permission", cursor):
-		try:
-			cursor.execute(
-				"INSERT OR IGNORE INTO webapp_page_permission (page_key, min_level, write_level) VALUES ('discord_members', 1, 1)"
-			)
-		except Exception as e:
-			logging.warning(f"Permission page discord_members: {e}")
-
-
 def _doSeedAuth(cursor: Cursor):
 	"""Seed rôles par défaut et permissions des pages si vides."""
 	from database.models import ROLE_ORDER
@@ -294,7 +269,6 @@ def _doSeedAuth(cursor: Cursor):
 		("freeloot", 1, 2),
 		("patreon", 1, 2),
 		("moderation", 1, 2),
-		("discord_members", 1, 1),
 		("users", 5, 5),
 		("settings", 5, 5),
 	]

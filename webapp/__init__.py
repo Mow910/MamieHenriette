@@ -41,7 +41,7 @@ def load_user(user_id):
 	except (ValueError, TypeError):
 		return None
 
-from webapp import auth, commandes, configurations, index, humeurs, protondb, live_alert, twitch_auth, moderation, discord_members, youtube, announcements, twitch_moderation, link_filter, twitch_events, users, settings, freeloot, patreon
+from webapp import auth, commandes, configurations, index, humeurs, protondb, live_alert, twitch_auth, moderation, youtube, announcements, twitch_moderation, link_filter, twitch_events, users, settings, freeloot, patreon
 
 from flask import request, redirect, url_for
 from flask_login import current_user

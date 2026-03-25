@@ -99,15 +99,6 @@ CREATE TABLE IF NOT EXISTS `member_invites` (
 	`join_date` DATETIME NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS `guild_member_stats` (
-	`guild_id` VARCHAR(64) NOT NULL,
-	`user_id` VARCHAR(64) NOT NULL,
-	`message_count` INTEGER NOT NULL DEFAULT 0,
-	`voice_seconds` INTEGER NOT NULL DEFAULT 0,
-	`updated_at` DATETIME,
-	PRIMARY KEY (`guild_id`, `user_id`)
-);
-
 CREATE TABLE IF NOT EXISTS `twitch_link_filter` (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	`enabled` BOOLEAN NOT NULL DEFAULT FALSE,
