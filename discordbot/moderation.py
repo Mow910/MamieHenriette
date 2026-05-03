@@ -216,18 +216,26 @@ async def send_dm_to_warned_user(target_user, reason: str, guild_name: str):
 		logging.error(f"Erreur lors de l'envoi du MP à {target_user.name} ({target_user.id}): {e}")
 		return False
 
-async def send_warning_confirmation(channel, target_user, reason: str, original_message: Message, bot, timeout_info: tuple = None):
+async def send_warning_confirmation(
+	bot,
+	guild: discord.Guild,
+	staff: discord.Member,
+	target_user: discord.User,
+	reason: str,
+	timeout_info: tuple = None,
+	message_a_supprimer: Optional[Message] = None,
+):
 	local_now = _to_local(datetime.now(timezone.utc))
-	dm_sent = await send_dm_to_warned_user(target_user, reason, original_message.guild.name)
-	
+	dm_sent = await send_dm_to_warned_user(target_user, reason, guild.name)
+
 	was_timed_out = timeout_info is not None and timeout_info[0]
 	timeout_duration = timeout_info[1] if timeout_info else None
-	
+
 	title = "⚠️ Avertissement + ⏱️ Time out" if was_timed_out else "⚠️ Avertissement"
 	description = f"**{target_user.name}** (`{target_user.name}`) a reçu un avertissement"
 	if was_timed_out:
 		description += f" et a été time out ({format_timeout_duration(timeout_duration)})"
-	
+
 	embed = discord.Embed(
 		title=title,
 		description=description,
@@ -235,20 +243,69 @@ async def send_warning_confirmation(channel, target_user, reason: str, original_
 		timestamp=datetime.now(timezone.utc)
 	)
 	embed.add_field(name="👤 Utilisateur", value=f"**{target_user.name}**\n`{target_user.id}`", inline=True)
-	embed.add_field(name="🛡️ Modérateur", value=f"**{original_message.author.name}**", inline=True)
+	embed.add_field(name="🛡️ Modérateur", value=f"**{staff.name}**", inline=True)
 	embed.add_field(name="📅 Date et heure", value=local_now.strftime('%d/%m/%Y à %H:%M'), inline=True)
 	if reason != "Sans raison":
 		embed.add_field(name="📝 Raison", value=reason, inline=False)
-	
+
 	if dm_sent:
 		embed.add_field(name="✅ Message privé", value="L'utilisateur a été notifié par MP", inline=False)
 	else:
-		embed.add_field(name="⚠️ Message privé", value=f"Il faut contacter {target_user.mention} pour l'informer de cet avertissement (MPs désactivés). {original_message.author.mention}", inline=False)
-	
-	embed.set_footer(text=f"ID: {target_user.id} • Serveur: {original_message.guild.name}")
-	
+		embed.add_field(
+			name="⚠️ Message privé",
+			value=f"Il faut contacter {target_user.mention} pour l'informer de cet avertissement (MPs désactivés). {staff.mention}",
+			inline=False,
+		)
+
+	embed.set_footer(text=f"ID: {target_user.id} • Serveur: {guild.name}")
+
 	await send_to_moderation_log_channel(bot, embed)
-	await safe_delete_message(original_message)
+	if message_a_supprimer:
+		await safe_delete_message(message_a_supprimer)
+
+
+async def moderation_perform_warning(
+	bot,
+	guild: discord.Guild,
+	staff: discord.Member,
+	target_user: discord.User,
+	reason: str,
+	timeout_seconds: Optional[int] = None,
+) -> Optional[str]:
+	if staff.id == target_user.id:
+		return "Vous ne pouvez pas vous avertir vous-même."
+	if target_user.id == bot.user.id:
+		return "Je ne peux pas recevoir d'avertissement."
+	create_warning_event(target_user, reason, staff)
+
+	timeout_info = None
+	if timeout_seconds:
+		member_obj = guild.get_member(target_user.id)
+		if member_obj:
+			try:
+				until = discord.utils.utcnow() + timedelta(seconds=timeout_seconds)
+				await member_obj.timeout(until, reason=reason)
+				timeout_info = (True, timeout_seconds)
+
+				timeout_event = ModerationEvent(
+					type='timeout',
+					username=target_user.name,
+					discord_id=str(target_user.id),
+					created_at=datetime.now(timezone.utc),
+					reason=reason,
+					staff_id=str(staff.id),
+					staff_name=staff.name,
+					duration=timeout_seconds
+				)
+				db.session.add(timeout_event)
+				_commit_with_retry()
+			except discord.Forbidden:
+				logging.error(f"Permissions insuffisantes pour timeout {target_user.name}")
+			except Exception as e:
+				logging.error(f"Erreur lors du timeout de {target_user.name}: {e}")
+
+	await send_warning_confirmation(bot, guild, staff, target_user, reason, timeout_info, message_a_supprimer=None)
+	return None
 
 async def handle_warning_command(message: Message, bot):
 	parts = message.content.split(maxsplit=2)
@@ -264,35 +321,13 @@ async def handle_warning_command(message: Message, bot):
 			await _process_warning_success(message, target_user, reason, bot, timeout_seconds)
 
 async def _process_warning_success(message: Message, target_user, reason: str, bot, timeout_seconds: int = None):
-	create_warning_event(target_user, reason, message.author)
-	
-	timeout_info = None
-	if timeout_seconds:
-		member_obj = message.guild.get_member(target_user.id)
-		if member_obj:
-			try:
-				until = discord.utils.utcnow() + timedelta(seconds=timeout_seconds)
-				await member_obj.timeout(until, reason=reason)
-				timeout_info = (True, timeout_seconds)
-				
-				timeout_event = ModerationEvent(
-					type='timeout',
-					username=target_user.name,
-					discord_id=str(target_user.id),
-					created_at=datetime.now(timezone.utc),
-					reason=reason,
-					staff_id=str(message.author.id),
-					staff_name=message.author.name,
-					duration=timeout_seconds
-				)
-				db.session.add(timeout_event)
-				_commit_with_retry()
-			except discord.Forbidden:
-				logging.error(f"Permissions insuffisantes pour timeout {target_user.name}")
-			except Exception as e:
-				logging.error(f"Erreur lors du timeout de {target_user.name}: {e}")
-	
-	await send_warning_confirmation(message.channel, target_user, reason, message, bot, timeout_info)
+	err = await moderation_perform_warning(bot, message.guild, message.author, target_user, reason, timeout_seconds)
+	if err:
+		embed = discord.Embed(title="❌ Erreur", description=err, color=discord.Color.red())
+		msg = await message.channel.send(embed=embed)
+		asyncio.create_task(delete_after_delay(msg))
+		return
+	await safe_delete_message(message)
 
 def parse_timeout_from_args(duration_str: str):
 	match = re.match(r'^(\d+)([smhj])?$', duration_str.lower())
@@ -945,6 +980,8 @@ async def handle_staff_help_command(message: Message, bot):
 		if ConfigurationHelper().getValue('moderation_enable'):
 			value = (
 				"**Avertissements:**\n"
+				"• `/warn` — membre, raison optionnelle, durée de time out optionnelle\n"
+				"• Clic droit sur un message → Applications → **Avertir l'auteur**\n"
 				"• `!warn @utilisateur raison`\n"
 				"  *Alias: !averto, !av, !avertissement*\n"
 				"  Donne un avertissement\n"
@@ -966,9 +1003,13 @@ async def handle_staff_help_command(message: Message, bot):
 			embed.add_field(name="⚠️ Avertissements & Time out", value=value, inline=False)
 			embed.add_field(
 				name="🔎 Inspection",
-				value=("• `!inspect @utilisateur` ou `!inspect id`\n"
-						"Affiche les infos détaillées et l'historique de modération\n"
-						"Ex: `!inspect @User`"),
+				value=(
+					"• `/inspect` — membre (réponse visible seulement par vous)\n"
+					"• Clic droit sur un message → Applications → **Inspecter l'auteur**\n"
+					"• `!inspect @utilisateur` ou `!inspect id`\n"
+					"  Affiche les infos dans le salon puis supprime la commande\n"
+					"Ex: `!inspect @User`"
+				),
 				inline=False
 			)
 
@@ -1161,6 +1202,24 @@ async def get_invite_info_for_user(bot, guild, user_id: int):
 		logging.error(f'Erreur lors de la récupération de l\'invitation : {e}')
 		return None
 
+async def build_inspect_embed_for_user(bot, guild: discord.Guild, target_user: discord.User) -> discord.Embed:
+	member = guild.get_member(target_user.id)
+	join_date, days_on_server = await get_member_join_info(guild, target_user.id)
+	account_age = get_account_age(target_user)
+	warnings, kicks, bans = get_user_moderation_history(str(target_user.id))
+	invite_info = await get_invite_info_for_user(bot, guild, target_user.id)
+	return create_inspect_embed(
+		target_user,
+		member,
+		join_date,
+		days_on_server,
+		account_age,
+		warnings,
+		kicks,
+		bans,
+		invite_info
+	)
+
 async def handle_inspect_command(message: Message, bot):
 	if not has_staff_role(message.author.roles):
 		await send_access_denied(message.channel)
@@ -1178,24 +1237,7 @@ async def handle_inspect_command(message: Message, bot):
 		await send_user_not_found(message.channel)
 		return
 	
-	member = message.guild.get_member(target_user.id)
-	join_date, days_on_server = await get_member_join_info(message.guild, target_user.id)
-	account_age = get_account_age(target_user)
-	warnings, kicks, bans = get_user_moderation_history(str(target_user.id))
-	invite_info = await get_invite_info_for_user(bot, message.guild, target_user.id)
-	
-	embed = create_inspect_embed(
-		target_user,
-		member,
-		join_date,
-		days_on_server,
-		account_age,
-		warnings,
-		kicks,
-		bans,
-		invite_info
-	)
-	
+	embed = await build_inspect_embed_for_user(bot, message.guild, target_user)
 	await message.channel.send(embed=embed)
 	await safe_delete_message(message)
 
@@ -1835,6 +1877,51 @@ class KickAuthorReasonModal(Modal, title="Expulser l'auteur"):
 		else:
 			await interaction.followup.send(f"✅ **{target.name}** a été expulsé.", ephemeral=True)
 
+class WarnAuthorModal(Modal, title="Avertir l'auteur"):
+	reason = TextInput(
+		label="Raison",
+		placeholder="Ex. Spam, règles du salon…",
+		required=False,
+		max_length=500,
+		style=discord.TextStyle.short,
+	)
+	duration = TextInput(
+		label="Durée time out (optionnel)",
+		placeholder="Ex. 10m — laisser vide pour avertissement seul",
+		required=False,
+		max_length=12,
+		style=discord.TextStyle.short,
+	)
+
+	def __init__(self, source_message: discord.Message):
+		super().__init__()
+		self.source_message = source_message
+
+	async def on_submit(self, interaction: discord.Interaction):
+		await interaction.response.defer(ephemeral=True)
+		bot = interaction.client
+		guild = interaction.guild
+		if not guild or not isinstance(interaction.user, discord.Member):
+			await interaction.followup.send("❌ Action impossible dans ce contexte.", ephemeral=True)
+			return
+		reason = (self.reason.value or "").strip() or "Sans raison"
+		dur_raw = (self.duration.value or "").strip()
+		timeout_seconds = None
+		if dur_raw:
+			timeout_seconds = parse_timeout_from_args(dur_raw)
+			if not timeout_seconds:
+				await interaction.followup.send(
+					"❌ Durée invalide. Utilisez un format comme `10m`, `1h`, `60s`, `2j`, ou laissez vide.",
+					ephemeral=True,
+				)
+				return
+		target = self.source_message.author
+		err = await moderation_perform_warning(bot, guild, interaction.user, target, reason, timeout_seconds)
+		if err:
+			await interaction.followup.send(f"❌ {err}", ephemeral=True)
+		else:
+			await interaction.followup.send(f"✅ Avertissement enregistré pour **{target.name}**.", ephemeral=True)
+
 class TimeoutAuthorModal(Modal, title="Exclure temporairement"):
 	duration = TextInput(
 		label="Durée (ex. 10m, 1h, 2j)",
@@ -1979,6 +2066,69 @@ async def moderation_slash_timeout(
 			ephemeral=True,
 		)
 
+@app_commands.command(name="warn", description="Enregistre un avertissement (optionnel : time out).")
+@app_commands.guild_only()
+@app_commands.default_permissions(manage_messages=True)
+@app_commands.describe(
+	utilisateur="Membre à avertir",
+	raison="Raison (logs et MP)",
+	duree_timeout="Durée de time out optionnelle (ex. 10m, 1h) — laisser vide pour avertissement seul",
+)
+async def moderation_slash_warn(
+	interaction: discord.Interaction,
+	utilisateur: discord.Member,
+	raison: Optional[str] = None,
+	duree_timeout: Optional[str] = None,
+):
+	if not ConfigurationHelper().getValue('moderation_enable'):
+		await interaction.response.send_message("❌ La modération n'est pas activée sur ce serveur.", ephemeral=True)
+		return
+	if not _interaction_must_be_staff_member(interaction):
+		await interaction.response.send_message(
+			"❌ Vous n'avez pas les permissions nécessaires pour utiliser cette commande.",
+			ephemeral=True,
+		)
+		return
+	if utilisateur.bot:
+		await interaction.response.send_message("❌ Impossible d'avertir un bot avec cette commande.", ephemeral=True)
+		return
+	reason = _normalized_slash_reason(raison)
+	timeout_seconds = None
+	if duree_timeout and duree_timeout.strip():
+		timeout_seconds = parse_timeout_from_args(duree_timeout.strip())
+		if not timeout_seconds:
+			await interaction.response.send_message(
+				"❌ Durée invalide. Exemples : `10m`, `1h`, `60s`, `2j`, ou laissez le champ vide.",
+				ephemeral=True,
+			)
+			return
+	await interaction.response.defer(ephemeral=True)
+	err = await moderation_perform_warning(
+		interaction.client, interaction.guild, interaction.user, utilisateur, reason, timeout_seconds
+	)
+	if err:
+		await interaction.followup.send(f"❌ {err}", ephemeral=True)
+	else:
+		await interaction.followup.send(f"✅ Avertissement enregistré pour **{utilisateur.name}**.", ephemeral=True)
+
+@app_commands.command(name="inspect", description="Affiche le profil et l'historique de modération d'un membre.")
+@app_commands.guild_only()
+@app_commands.default_permissions(manage_messages=True)
+@app_commands.describe(utilisateur="Membre à inspecter")
+async def moderation_slash_inspect(interaction: discord.Interaction, utilisateur: discord.Member):
+	if not ConfigurationHelper().getValue('moderation_enable'):
+		await interaction.response.send_message("❌ La modération n'est pas activée sur ce serveur.", ephemeral=True)
+		return
+	if not _interaction_must_be_staff_member(interaction):
+		await interaction.response.send_message(
+			"❌ Vous n'avez pas les permissions nécessaires pour utiliser cette commande.",
+			ephemeral=True,
+		)
+		return
+	await interaction.response.defer(ephemeral=True)
+	embed = await build_inspect_embed_for_user(interaction.client, interaction.guild, utilisateur)
+	await interaction.followup.send(embed=embed, ephemeral=True)
+
 @app_commands.command(name="say", description="Envoie un message dans un salon ou un fil (équivalent de !say).")
 @app_commands.guild_only()
 @app_commands.default_permissions(manage_messages=True)
@@ -2030,6 +2180,44 @@ async def moderation_slash_say(
 	except Exception:
 		mention = f"#{canal.name}"
 	await interaction.response.send_message(f"✅ Message envoyé dans {mention}.", ephemeral=True)
+
+@app_commands.context_menu(name="Avertir l'auteur")
+@app_commands.guild_only()
+@app_commands.default_permissions(manage_messages=True)
+async def moderation_ctx_warn_author(interaction: discord.Interaction, message: discord.Message):
+	if not ConfigurationHelper().getValue('moderation_enable'):
+		await interaction.response.send_message("❌ La modération n'est pas activée sur ce serveur.", ephemeral=True)
+		return
+	if not _interaction_must_be_staff_member(interaction):
+		await interaction.response.send_message(
+			"❌ Vous n'avez pas les permissions nécessaires pour utiliser cette commande.",
+			ephemeral=True,
+		)
+		return
+	if message.author.bot:
+		await interaction.response.send_message("❌ Impossible d'avertir un bot.", ephemeral=True)
+		return
+	if message.author.id == interaction.client.user.id:
+		await interaction.response.send_message("❌ Impossible d'utiliser cette action sur ce message.", ephemeral=True)
+		return
+	await interaction.response.send_modal(WarnAuthorModal(message))
+
+@app_commands.context_menu(name="Inspecter l'auteur")
+@app_commands.guild_only()
+@app_commands.default_permissions(manage_messages=True)
+async def moderation_ctx_inspect_author(interaction: discord.Interaction, message: discord.Message):
+	if not ConfigurationHelper().getValue('moderation_enable'):
+		await interaction.response.send_message("❌ La modération n'est pas activée sur ce serveur.", ephemeral=True)
+		return
+	if not _interaction_must_be_staff_member(interaction):
+		await interaction.response.send_message(
+			"❌ Vous n'avez pas les permissions nécessaires pour utiliser cette commande.",
+			ephemeral=True,
+		)
+		return
+	await interaction.response.defer(ephemeral=True)
+	embed = await build_inspect_embed_for_user(interaction.client, interaction.guild, message.author)
+	await interaction.followup.send(embed=embed, ephemeral=True)
 
 @app_commands.context_menu(name="Bannir l'auteur")
 @app_commands.guild_only()
