@@ -1971,7 +1971,7 @@ def _interaction_must_be_staff_member(interaction: discord.Interaction) -> bool:
 
 @app_commands.command(name="ban", description="Bannit définitivement un membre du serveur.")
 @app_commands.guild_only()
-@app_commands.default_permissions(ban_members=True)
+@app_commands.default_permissions(manage_messages=True)
 @app_commands.describe(utilisateur="Membre à bannir", raison="Raison enregistrée dans les logs")
 async def moderation_slash_ban(interaction: discord.Interaction, utilisateur: discord.Member, raison: Optional[str] = None):
 	if not ConfigurationHelper().getValue('moderation_ban_enable'):
@@ -1996,7 +1996,7 @@ async def moderation_slash_ban(interaction: discord.Interaction, utilisateur: di
 
 @app_commands.command(name="kick", description="Expulse un membre du serveur.")
 @app_commands.guild_only()
-@app_commands.default_permissions(kick_members=True)
+@app_commands.default_permissions(manage_messages=True)
 @app_commands.describe(utilisateur="Membre à expulser", raison="Raison enregistrée dans les logs")
 async def moderation_slash_kick(interaction: discord.Interaction, utilisateur: discord.Member, raison: Optional[str] = None):
 	if not ConfigurationHelper().getValue('moderation_kick_enable'):
@@ -2021,7 +2021,7 @@ async def moderation_slash_kick(interaction: discord.Interaction, utilisateur: d
 
 @app_commands.command(name="timeout", description="Exclut temporairement un membre (time out).")
 @app_commands.guild_only()
-@app_commands.default_permissions(moderate_members=True)
+@app_commands.default_permissions(manage_messages=True)
 @app_commands.describe(
 	utilisateur="Membre à exclure temporairement",
 	duree="Durée : 10m, 1h, 60s, 2j, etc.",
@@ -2205,7 +2205,7 @@ async def moderation_ctx_warn_author(interaction: discord.Interaction, message: 
 
 @app_commands.context_menu(name="Bannir l'auteur")
 @app_commands.guild_only()
-@app_commands.default_permissions(ban_members=True)
+@app_commands.default_permissions(manage_messages=True)
 async def moderation_ctx_ban_author(interaction: discord.Interaction, message: discord.Message):
 	if not ConfigurationHelper().getValue('moderation_ban_enable'):
 		await interaction.response.send_message("❌ La modération (ban) n'est pas activée sur ce serveur.", ephemeral=True)
@@ -2226,7 +2226,7 @@ async def moderation_ctx_ban_author(interaction: discord.Interaction, message: d
 
 @app_commands.context_menu(name="Expulser l'auteur")
 @app_commands.guild_only()
-@app_commands.default_permissions(kick_members=True)
+@app_commands.default_permissions(manage_messages=True)
 async def moderation_ctx_kick_author(interaction: discord.Interaction, message: discord.Message):
 	if not ConfigurationHelper().getValue('moderation_kick_enable'):
 		await interaction.response.send_message("❌ La modération (kick) n'est pas activée sur ce serveur.", ephemeral=True)
@@ -2247,7 +2247,7 @@ async def moderation_ctx_kick_author(interaction: discord.Interaction, message: 
 
 @app_commands.context_menu(name="Exclure temporairement")
 @app_commands.guild_only()
-@app_commands.default_permissions(moderate_members=True)
+@app_commands.default_permissions(manage_messages=True)
 async def moderation_ctx_timeout_author(interaction: discord.Interaction, message: discord.Message):
 	if not ConfigurationHelper().getValue('moderation_enable'):
 		await interaction.response.send_message("❌ La modération n'est pas activée sur ce serveur.", ephemeral=True)
