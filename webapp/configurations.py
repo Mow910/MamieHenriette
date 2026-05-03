@@ -26,11 +26,14 @@ def updateConfiguration():
 		'twitch_commands_enable': 'twitch_channel'
 	}
 	
+	# Ne mettre à jour les rôles staff que si la liste a été rendue dans le formulaire.
+	# Sinon (bot pas encore prêt, guilds vides), getlist est vide et on écrasait la config en base.
 	staff_roles = request.form.getlist('moderation_staff_role_ids')
-	if staff_roles:
-		ConfigurationHelper().createOrUpdate('moderation_staff_role_ids', ','.join(staff_roles))
-	else:
-		ConfigurationHelper().createOrUpdate('moderation_staff_role_ids', '')
+	if request.form.get('moderation_roles_in_form'):
+		if staff_roles:
+			ConfigurationHelper().createOrUpdate('moderation_staff_role_ids', ','.join(staff_roles))
+		else:
+			ConfigurationHelper().createOrUpdate('moderation_staff_role_ids', '')
 	
 	for key in request.form:
 		if key == 'moderation_staff_role_ids':

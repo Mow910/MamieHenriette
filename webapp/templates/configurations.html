@@ -159,6 +159,9 @@
 				
 				<div>
 					<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Rôles Staff autorisés</label>
+					{% if roles %}
+					<input type="hidden" name="moderation_roles_in_form" value="1">
+					{% endif %}
 					{% set selected_roles = (configuration.getValue('moderation_staff_role_ids') or '').split(',') %}
 					
 					{% if roles|length > 1 %}
