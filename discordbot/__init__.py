@@ -32,7 +32,7 @@ from discordbot.welcome import sendWelcomeMessage, sendLeaveMessage, updateInvit
 from discordbot.patreon import checkPatreonPosts
 from discordbot.youtube import checkYouTubeVideos
 from discordbot.auto_rooms import on_voice_state_update_auto_rooms, on_raw_reaction_add_auto_rooms, on_message_auto_rooms, cleanup_orphaned_auto_rooms
-from protondb import searhProtonDb
+from discordbot.protondb_discord import protondb_slash_command, protondb_message_context_menu
 
 class DiscordBot(discord.Client):
 	def __init__(self, *, intents: discord.Intents):
@@ -49,9 +49,11 @@ class DiscordBot(discord.Client):
 			moderation_ctx_ban_author,
 			moderation_ctx_kick_author,
 			moderation_ctx_timeout_author,
+			protondb_slash_command,
+			protondb_message_context_menu,
 		):
 			self.tree.add_command(cmd)
-		logging.info("Commandes d'application (transfert, ban, kick, timeout) ajoutées au CommandTree")
+		logging.info("Commandes d'application (transfert, modération, ProtonDB) ajoutées au CommandTree")
 	
 	async def on_ready(self):
 		logging.info(f'Connecté en tant que {self.user} (ID: {self.user.id})')
@@ -229,103 +231,6 @@ async def on_message(message: Message):
 			return
 		except Exception as e:
 			logging.error(f'Échec de l\'exécution de la commande Discord : {e}')
-
-	if (ConfigurationHelper().getValue('proton_db_enable_enable') and (message.content.startswith('!protondb') or message.content.startswith('!pdb'))):
-		if (message.content.find('<@')>0) :
-			mention = message.content[message.content.find('<@'):]
-		else :
-			mention = message.author.mention
-		name = message.content
-		if name.startswith('!protondb'):
-			name = name.replace('!protondb', '', 1)
-		elif name.startswith('!pdb'):
-			name = name.replace('!pdb', '', 1)
-		name = name.replace(f'{mention}', '').strip();
-		
-		if not name or len(name) == 0:
-			try:
-				await message.delete()
-				delete_time = ConfigurationHelper().getIntValue('proton_db_delete_time') or 10
-				help_msg = await message.channel.send(
-					f"{mention} ⚠️ Utilisation: `!pdb nom du jeu` ou `!protondb nom du jeu`\n"
-					f"Exemple: `!pdb Elden Ring`",
-					suppress_embeds=True
-				)
-				await asyncio.sleep(delete_time)
-				await help_msg.delete()
-			except Exception as e:
-				logging.error(f"Échec de la gestion du message d'aide ProtonDB : {e}")
-			return
-		
-		try:
-			searching_msg = await message.channel.send(f"🔍 Recherche en cours pour **{name}**...")
-			games = searhProtonDb(name)
-			await searching_msg.delete()
-		except:
-			games = searhProtonDb(name)
-		
-		if (len(games)==0) :
-			msg = f'{mention} Je n\'ai pas trouvé de jeux correspondant à **{name}**. Es-tu sûr que le jeu est disponible sur Steam ?'
-			try:
-				await message.channel.send(msg, suppress_embeds=True)
-			except Exception as e:
-				logging.error(f"Échec de l'envoi du message ProtonDB : {e}")
-			return
-		total_games = len(games)
-		tier_colors = {'platinum': '🟣', 'gold': '🟡', 'silver': '⚪', 'bronze': '🟤', 'borked': '🔴'}
-		content = ""
-		max_games = 15
-		
-		for count, game in enumerate(games[:max_games]):
-			g_name = str(game.get('name'))
-			g_id = str(game.get('id'))
-			tier = str(game.get('tier') or 'N/A').lower()
-			tier_icon = tier_colors.get(tier, '⚫')
-			
-			new_entry = f"**[{g_name}](<https://www.protondb.com/app/{g_id}>)**\n{tier_icon} Classé **{tier.capitalize()}**"
-			
-			ac_status = game.get('anticheat_status')
-			if ac_status:
-				status_lower = str(ac_status).lower()
-				ac_map = {
-					'supported': ('✅', 'Supporté'),
-					'running': ('⚠️', 'Fonctionne'),
-					'broken': ('❌', 'Cassé'),
-					'denied': ('🚫', 'Refusé'),
-					'planned': ('📅', 'Planifié')
-				}
-				ac_emoji, ac_label = ac_map.get(status_lower, ('❔', str(ac_status)))
-				acs = game.get('anticheats') or []
-				ac_list = ', '.join([str(ac) for ac in acs if ac])
-				new_entry += f" • [Anti-cheat {ac_emoji} {ac_label}"
-				if ac_list:
-					new_entry += f" ({ac_list})"
-				new_entry += f"](<https://areweanticheatyet.com/game/{g_id}>)"
-			
-			new_entry += "\n\n"
-			
-			# Vérifier la limite avant d'ajouter
-			if len(content) + len(new_entry) > 3900:
-				rest = len(games) - count
-				content += f"*... et {rest} autre{'s' if rest > 1 else ''} jeu{'x' if rest > 1 else ''}*"
-				break
-			
-			content += new_entry
-		else:
-			rest = max(0, len(games) - max_games)
-			if rest > 0:
-				content += f"*... et {rest} autre{'s' if rest > 1 else ''} jeu{'x' if rest > 1 else ''}*"
-		
-		embed = discord.Embed(
-			title=f"🎮 Résultats ProtonDB - **{total_games} jeu{'x' if total_games > 1 else ''} trouvé{'s' if total_games > 1 else ''}**",
-			description=content,
-			color=0x5865F2
-		)
-		
-		try : 
-			await message.channel.send(embed=embed)
-		except Exception as e:
-			logging.error(f"Échec de l'envoi de l'embed ProtonDB : {e}")
 
 @bot.event
 async def on_voice_state_update(member: Member, before, after):
