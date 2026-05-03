@@ -35,7 +35,7 @@ def _findFirstNotNotified(bundles) :
 def _formatMessage(bundle):
 	choice = bundle['choices'][0]
 	date = datetime.datetime.fromtimestamp(bundle['endDate']/1000,datetime.UTC).strftime("%d %B %Y")
-	message = f"@here **Humble Bundle** propose un pack de jeu [{bundle['name']}]({bundle['url']}) contenant :\n"
+	message = f"**Humble Bundle** propose un pack de jeu [{bundle['name']}]({bundle['url']}) contenant :\n"
 	for game in choice["games"]:
 		message += f"- {game}\n"
 	message += f"Pour {choice['price']}€, disponible jusqu'au {date}."
