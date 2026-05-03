@@ -5,6 +5,7 @@ import os
 import re
 import discord
 import io
+from typing import Optional
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 from database import db
@@ -293,18 +294,6 @@ async def _process_warning_success(message: Message, target_user, reason: str, b
 	
 	await send_warning_confirmation(message.channel, target_user, reason, message, bot, timeout_info)
 
-async def send_timeout_usage(channel):
-	embed = discord.Embed(
-		title="📋 Utilisation de la commande",
-		description="**Syntaxe :** `!to @utilisateur durée raison` ou `!timeout @utilisateur durée raison`",
-		color=discord.Color.blue()
-	)
-	embed.add_field(name="Exemples", value="• `!to @User 10m Spam`\n• `!timeout @User 1h Comportement inapproprié`\n• `!to @User 30s Flood`\n• `!timeout @User 1j Toxicité`", inline=False)
-	embed.add_field(name="Durées", value="`s` = secondes, `m` = minutes (défaut), `h` = heures, `j` = jours\nExemple: `10m`, `1h`, `60s`", inline=False)
-	embed.add_field(name="Aliases", value="`!to`, `!timeout`", inline=False)
-	msg = await channel.send(embed=embed)
-	asyncio.create_task(delete_after_delay(msg))
-
 def parse_timeout_from_args(duration_str: str):
 	match = re.match(r'^(\d+)([smhj])?$', duration_str.lower())
 	if not match:
@@ -322,118 +311,6 @@ def parse_timeout_from_args(duration_str: str):
 	elif unit == 'j':
 		return value * 86400
 	return None
-
-async def parse_timeout_target_and_params(message, bot, parts: list):
-	if len(parts) < 3:
-		return None, None, None
-	
-	if message.mentions:
-		target_user = message.mentions[0]
-		timeout_seconds = parse_timeout_from_args(parts[2])
-		reason = " ".join(parts[3:]) if len(parts) > 3 else "Sans raison"
-		return target_user, timeout_seconds, reason
-	
-	try:
-		user_id = int(parts[1])
-		target_user = await bot.fetch_user(user_id)
-		timeout_seconds = parse_timeout_from_args(parts[2])
-		reason = " ".join(parts[3:]) if len(parts) > 3 else "Sans raison"
-		return target_user, timeout_seconds, reason
-	except (ValueError, discord.NotFound):
-		return None, None, None
-
-async def send_timeout_confirmation(channel, target_user, reason: str, timeout_seconds: int, original_message: Message, bot):
-	local_now = _to_local(datetime.now(timezone.utc))
-	
-	embed = discord.Embed(
-		title="⏱️ Time out",
-		description=f"**{target_user.name}** (`{target_user.name}`) a été exclu temporairement ({format_timeout_duration(timeout_seconds)})",
-		color=discord.Color.orange(),
-		timestamp=datetime.now(timezone.utc)
-	)
-	embed.add_field(name="👤 Utilisateur", value=f"**{target_user.name}**\n`{target_user.id}`", inline=True)
-	embed.add_field(name="🛡️ Modérateur", value=f"**{original_message.author.name}**", inline=True)
-	embed.add_field(name="📅 Date et heure", value=local_now.strftime('%d/%m/%Y à %H:%M'), inline=True)
-	embed.add_field(name="⏱️ Durée", value=format_timeout_duration(timeout_seconds), inline=True)
-	if reason != "Sans raison":
-		embed.add_field(name="📝 Raison", value=reason, inline=False)
-	
-	embed.set_footer(text=f"ID: {target_user.id} • Serveur: {original_message.guild.name}")
-	
-	await send_to_moderation_log_channel(bot, embed)
-	await safe_delete_message(original_message)
-
-async def send_invalid_timeout_duration(channel):
-	embed = discord.Embed(
-		title="❌ Erreur",
-		description="Durée invalide. Utilisez un format valide comme `10m`, `1h`, `60s`, etc.",
-		color=discord.Color.red()
-	)
-	msg = await channel.send(embed=embed)
-	asyncio.create_task(delete_after_delay(msg))
-
-async def handle_timeout_command(message: Message, bot):
-	parts = message.content.split()
-	if not has_staff_role(message.author.roles):
-		await send_access_denied(message.channel)
-	elif len(parts) < 3:
-		await send_timeout_usage(message.channel)
-	else:
-		target_user, timeout_seconds, reason = await parse_timeout_target_and_params(message, bot, parts)
-		if not target_user:
-			await send_user_not_found(message.channel)
-		elif not timeout_seconds:
-			await send_invalid_timeout_duration(message.channel)
-		else:
-			await _process_timeout_success(message, target_user, reason, timeout_seconds, bot)
-
-async def _process_timeout_success(message: Message, target_user, reason: str, timeout_seconds: int, bot):
-	member_obj = message.guild.get_member(target_user.id)
-	if not member_obj:
-		embed = discord.Embed(
-			title="❌ Erreur",
-			description="L'utilisateur n'est pas membre du serveur.",
-			color=discord.Color.red()
-		)
-		msg = await message.channel.send(embed=embed)
-		asyncio.create_task(delete_after_delay(msg))
-		return
-	
-	try:
-		until = discord.utils.utcnow() + timedelta(seconds=timeout_seconds)
-		await member_obj.timeout(until, reason=reason)
-		
-		timeout_event = ModerationEvent(
-			type='timeout',
-			username=target_user.name,
-			discord_id=str(target_user.id),
-			created_at=datetime.now(timezone.utc),
-			reason=reason,
-			staff_id=str(message.author.id),
-			staff_name=message.author.name,
-			duration=timeout_seconds
-		)
-		db.session.add(timeout_event)
-		_commit_with_retry()
-		
-		await send_timeout_confirmation(message.channel, target_user, reason, timeout_seconds, message, bot)
-	except discord.Forbidden:
-		embed = discord.Embed(
-			title="❌ Erreur",
-			description="Je n'ai pas les permissions nécessaires pour exclure cet utilisateur.",
-			color=discord.Color.red()
-		)
-		msg = await message.channel.send(embed=embed)
-		asyncio.create_task(delete_after_delay(msg))
-	except Exception as e:
-		logging.error(f"Erreur lors du timeout de {target_user.name}: {e}")
-		embed = discord.Embed(
-			title="❌ Erreur",
-			description=f"Une erreur est survenue lors de l'exclusion : {str(e)}",
-			color=discord.Color.red()
-		)
-		msg = await message.channel.send(embed=embed)
-		asyncio.create_task(delete_after_delay(msg))
 
 async def send_remove_warning_usage(channel):
 	embed = discord.Embed(
@@ -605,54 +482,12 @@ async def handle_list_warnings_command(message: Message, bot):
 	await handle_pagination_loop(msg, bot, message.author, events, per_page)
 	await safe_delete_message(message)
 
-async def handle_ban_command(message: Message, bot):
-	parts = message.content.split(maxsplit=2)
-	if not has_staff_role(message.author.roles):
-		await send_access_denied(message.channel)
-	elif len(parts) < 2:
-		await _send_ban_usage(message.channel)
-	else:
-		target_user, reason = await _parse_ban_target_and_reason(message, bot, parts)
-		if not target_user:
-			await _send_user_not_found_for_ban(message.channel)
-		else:
-			await _process_ban_success(message, target_user, reason, bot)
-
-async def _send_ban_usage(channel):
-	embed = discord.Embed(
-		title="📋 Utilisation de la commande",
-		description="**Syntaxe :** `!ban @utilisateur [raison]` ou `!ban <id> [raison]`",
-		color=discord.Color.blue()
-	)
-	embed.add_field(name="Exemples", value="• `!ban @User Spam répété`\n• `!ban 123456789012345678 Comportement toxique`", inline=False)
-	msg = await channel.send(embed=embed)
-	asyncio.create_task(delete_after_delay(msg))
-
-async def _parse_ban_target_and_reason(message: Message, bot, parts: list):
-	if message.mentions:
-		return message.mentions[0], (parts[2] if len(parts) > 2 else "Sans raison")
-	try:
-		user_id = int(parts[1])
-		user = await bot.fetch_user(user_id)
-		return user, (parts[2] if len(parts) > 2 else "Sans raison")
-	except (ValueError, discord.NotFound):
-		return None, None
-
-async def _send_user_not_found_for_ban(channel):
-	embed = discord.Embed(
-		title="❌ Erreur",
-		description="Utilisateur introuvable. Vérifiez la mention ou l'ID Discord.",
-		color=discord.Color.red()
-	)
-	msg = await channel.send(embed=embed)
-	asyncio.create_task(delete_after_delay(msg))
-
 def _create_ban_event(target_user, reason: str, staff_member):
 	event = ModerationEvent(
 		type='ban',
 		username=target_user.name,
 		discord_id=str(target_user.id),
-        created_at=datetime.now(timezone.utc),
+		created_at=datetime.now(timezone.utc),
 		reason=reason,
 		staff_id=str(staff_member.id),
 		staff_name=staff_member.name
@@ -661,26 +496,33 @@ def _create_ban_event(target_user, reason: str, staff_member):
 	_commit_with_retry()
 	return event
 
-async def _process_ban_success(message: Message, target_user, reason: str, bot):
-	member = message.guild.get_member(target_user.id)
+def _normalized_slash_reason(raison: Optional[str]) -> str:
+	if raison is None:
+		return "Sans raison"
+	s = raison.strip()
+	return s if s else "Sans raison"
+
+async def moderation_perform_ban(
+	bot,
+	guild: discord.Guild,
+	staff: discord.Member,
+	target_user: discord.User,
+	reason: str,
+) -> Optional[str]:
+	if target_user.id == bot.user.id:
+		return "Je ne peux pas me bannir moi-même."
+	if staff.id == target_user.id:
+		return "Vous ne pouvez pas vous bannir vous-même."
+	member = guild.get_member(target_user.id)
 	joined_days = None
 	if member and member.joined_at:
 		delta = datetime.now(timezone.utc) - (member.joined_at if member.joined_at.tzinfo else member.joined_at.replace(tzinfo=timezone.utc))
 		joined_days = delta.days
 	try:
-		await message.guild.ban(target_user, reason=reason)
+		await guild.ban(target_user, reason=reason)
 	except discord.Forbidden:
-		embed = discord.Embed(
-			title="❌ Erreur",
-			description="Je n'ai pas les permissions nécessaires pour bannir cet utilisateur.",
-			color=discord.Color.red()
-		)
-		msg = await message.channel.send(embed=embed)
-		asyncio.create_task(delete_after_delay(msg))
-		return
-
-	event = _create_ban_event(target_user, reason, message.author)
-	
+		return "Je n'ai pas les permissions nécessaires pour bannir cet utilisateur."
+	_create_ban_event(target_user, reason, staff)
 	local_now = _to_local(datetime.now(timezone.utc))
 	embed = discord.Embed(
 		title="🔨 Bannissement",
@@ -689,16 +531,119 @@ async def _process_ban_success(message: Message, target_user, reason: str, bot):
 		timestamp=datetime.now(timezone.utc)
 	)
 	embed.add_field(name="👤 Utilisateur", value=f"**{target_user.name}**\n`{target_user.id}`", inline=True)
-	embed.add_field(name="🛡️ Modérateur", value=f"{message.author.name}", inline=True)
+	embed.add_field(name="🛡️ Modérateur", value=f"{staff.name}", inline=True)
 	embed.add_field(name="📅 Date et heure", value=local_now.strftime('%d/%m/%Y à %H:%M'), inline=True)
 	if joined_days is not None:
 		embed.add_field(name="⏱️ Membre depuis", value=format_days_to_age(joined_days), inline=True)
 	if reason != "Sans raison":
 		embed.add_field(name="📝 Raison", value=reason, inline=False)
-	embed.set_footer(text=f"ID: {target_user.id} • Serveur: {message.guild.name}")
-
+	embed.set_footer(text=f"ID: {target_user.id} • Serveur: {guild.name}")
 	await send_to_moderation_log_channel(bot, embed)
-	await safe_delete_message(message)
+	return None
+
+async def moderation_perform_kick(
+	bot,
+	guild: discord.Guild,
+	staff: discord.Member,
+	target_user: discord.User,
+	reason: str,
+) -> Optional[str]:
+	if target_user.id == bot.user.id:
+		return "Je ne peux pas m'expulser moi-même."
+	if staff.id == target_user.id:
+		return "Vous ne pouvez pas vous expulser vous-même."
+	member_obj = guild.get_member(target_user.id)
+	if not member_obj:
+		return "L'utilisateur n'est pas membre du serveur."
+	joined_days = None
+	if member_obj.joined_at:
+		delta = datetime.now(timezone.utc) - (member_obj.joined_at if member_obj.joined_at.tzinfo else member_obj.joined_at.replace(tzinfo=timezone.utc))
+		joined_days = delta.days
+	try:
+		await guild.kick(member_obj, reason=reason)
+	except discord.Forbidden:
+		return "Je n'ai pas les permissions nécessaires pour expulser cet utilisateur."
+	create = ModerationEvent(
+		type='kick',
+		username=target_user.name,
+		discord_id=str(target_user.id),
+		created_at=datetime.now(timezone.utc),
+		reason=reason,
+		staff_id=str(staff.id),
+		staff_name=staff.name
+	)
+	db.session.add(create)
+	_commit_with_retry()
+	local_now = _to_local(datetime.now(timezone.utc))
+	embed = discord.Embed(
+		title="👢 Expulsion",
+		description=f"**{target_user.name}** (`{target_user.name}`) a été expulsé du serveur",
+		color=discord.Color.orange(),
+		timestamp=datetime.now(timezone.utc)
+	)
+	embed.add_field(name="👤 Utilisateur", value=f"**{target_user.name}**\n`{target_user.id}`", inline=True)
+	embed.add_field(name="🛡️ Modérateur", value=f"**{staff.name}**", inline=True)
+	embed.add_field(name="📅 Date et heure", value=local_now.strftime('%d/%m/%Y à %H:%M'), inline=True)
+	if joined_days is not None:
+		embed.add_field(name="⏱️ Membre depuis", value=format_days_to_age(joined_days), inline=True)
+	if reason != "Sans raison":
+		embed.add_field(name="📝 Raison", value=reason, inline=False)
+	embed.set_footer(text=f"ID: {target_user.id} • Serveur: {guild.name}")
+	await send_to_moderation_log_channel(bot, embed)
+	return None
+
+async def moderation_perform_timeout(
+	bot,
+	guild: discord.Guild,
+	staff: discord.Member,
+	target_user: discord.User,
+	reason: str,
+	timeout_seconds: int,
+) -> Optional[str]:
+	if target_user.id == bot.user.id:
+		return "Je ne peux pas m'exclure temporairement moi-même."
+	if staff.id == target_user.id:
+		return "Vous ne pouvez pas vous exclure vous-même temporairement."
+	member_obj = guild.get_member(target_user.id)
+	if not member_obj:
+		return "L'utilisateur n'est pas membre du serveur."
+	try:
+		until = discord.utils.utcnow() + timedelta(seconds=timeout_seconds)
+		await member_obj.timeout(until, reason=reason)
+		timeout_event = ModerationEvent(
+			type='timeout',
+			username=target_user.name,
+			discord_id=str(target_user.id),
+			created_at=datetime.now(timezone.utc),
+			reason=reason,
+			staff_id=str(staff.id),
+			staff_name=staff.name,
+			duration=timeout_seconds
+		)
+		db.session.add(timeout_event)
+		_commit_with_retry()
+		local_now = _to_local(datetime.now(timezone.utc))
+		embed = discord.Embed(
+			title="⏱️ Time out",
+			description=f"**{target_user.name}** (`{target_user.name}`) a été exclu temporairement ({format_timeout_duration(timeout_seconds)})",
+			color=discord.Color.orange(),
+			timestamp=datetime.now(timezone.utc)
+		)
+		embed.add_field(name="👤 Utilisateur", value=f"**{target_user.name}**\n`{target_user.id}`", inline=True)
+		embed.add_field(name="🛡️ Modérateur", value=f"**{staff.name}**", inline=True)
+		embed.add_field(name="📅 Date et heure", value=local_now.strftime('%d/%m/%Y à %H:%M'), inline=True)
+		embed.add_field(name="⏱️ Durée", value=format_timeout_duration(timeout_seconds), inline=True)
+		if reason != "Sans raison":
+			embed.add_field(name="📝 Raison", value=reason, inline=False)
+		embed.set_footer(text=f"ID: {target_user.id} • Serveur: {guild.name}")
+		await send_to_moderation_log_channel(bot, embed)
+		return None
+	except discord.Forbidden:
+		return "Je n'ai pas les permissions nécessaires pour exclure cet utilisateur."
+	except Exception as e:
+		logging.error(f"Erreur lors du timeout de {target_user.name}: {e}")
+		return f"Une erreur est survenue lors de l'exclusion : {str(e)}"
+
 async def handle_unban_command(message: Message, bot):
 	parts = message.content.split(maxsplit=2)
 	if not has_staff_role(message.author.roles):
@@ -1006,10 +951,9 @@ async def handle_staff_help_command(message: Message, bot):
 				"  Donne un avertissement\n"
 				"• `!warn @utilisateur raison --to durée`\n"
 				"  Avertissement + time out temporaire\n\n"
-				"**Time out uniquement:**\n"
-				"• `!to @utilisateur durée raison`\n"
-				"  *Alias: !timeout*\n"
-				"  Time out (sans avertissement)\n"
+				"**Time out (sans avertissement):**\n"
+				"• `/timeout` — commande slash (membre, durée, raison optionnelle)\n"
+				"• Clic droit sur un message → Applications → **Exclure temporairement**\n"
 				"  *Durées: 10s, 5m, 1h, 2j*\n\n"
 				"**Gestion:**\n"
 				"• `!delaverto id` - Supprime un événement\n"
@@ -1017,7 +961,7 @@ async def handle_staff_help_command(message: Message, bot):
 				"**Exemples:**\n"
 				"`!warn @User Spam`\n"
 				"`!warn @User Flood --to 10m` (averto + timeout)\n"
-				"`!to @User 5m Spam` (timeout seul)\n"
+				"`/timeout` : membre + durée + raison (timeout seul)\n"
 				"`!warnings @User`"
 			)
 			embed.add_field(name="⚠️ Avertissements & Time out", value=value, inline=False)
@@ -1031,14 +975,14 @@ async def handle_staff_help_command(message: Message, bot):
 
 		if ConfigurationHelper().getValue('moderation_ban_enable'):
 			value = (
-				"• `!ban @utilisateur raison`\n"
-				"  Bannit définitivement un utilisateur\n"
+				"• `/ban` — bannit un membre (raison optionnelle)\n"
+				"• Clic droit sur un message → Applications → **Bannir l'auteur**\n"
 				"• `!unban discord_id` ou `!unban #sanction_id raison`\n"
 				"  Révoque le ban et envoie une invitation\n"
 				"• `!banlist`\n"
 				"  Affiche la liste des utilisateurs bannis\n"
 				"Exemples:\n"
-				"`!ban @User Comportement toxique répété`\n"
+				"`/ban` sur un membre avec raison\n"
 				"`!unban 123456789012345678 Erreur de modération`\n"
 				"`!unban #5 Appel accepté`"
 			)
@@ -1046,9 +990,8 @@ async def handle_staff_help_command(message: Message, bot):
 
 		if ConfigurationHelper().getValue('moderation_kick_enable'):
 			value = (
-				"• `!kick @utilisateur raison` ou `!kick <id> raison`\n"
-				"  Expulse temporairement un utilisateur du serveur\n"
-				"Exemples: `!kick @User Spam de liens` ou `!kick 123456789012345678 Spam`"
+				"• `/kick` — expulse un membre (raison optionnelle)\n"
+				"• Clic droit sur un message → Applications → **Expulser l'auteur**"
 			)
 			embed.add_field(name="👢 Expulsion", value=value, inline=False)
 		
@@ -1076,105 +1019,6 @@ async def handle_staff_help_command(message: Message, bot):
 			asyncio.create_task(delete_after_delay(sent))
 	except Exception:
 		pass
-	await safe_delete_message(message)
-
-async def handle_kick_command(message: Message, bot):
-	parts = message.content.split(maxsplit=2)
-	if not has_staff_role(message.author.roles):
-		await send_access_denied(message.channel)
-	elif len(parts) < 2:
-		await _send_kick_usage(message.channel)
-	else:
-		target_user, reason = await _parse_kick_target_and_reason(message, bot, parts)
-		if not target_user:
-			await _send_user_not_found_for_kick(message.channel)
-		else:
-			await _process_kick_success(message, target_user, reason, bot)
-
-async def _send_kick_usage(channel):
-	embed = discord.Embed(
-		title="📋 Utilisation de la commande",
-		description="**Syntaxe :** `!kick @utilisateur [raison]` ou `!kick <id> [raison]`",
-		color=discord.Color.blue()
-	)
-	embed.add_field(name="Exemples", value="• `!kick @User Spam dans le chat`\n• `!kick 123456789012345678 Comportement inapproprié`", inline=False)
-	msg = await channel.send(embed=embed)
-	asyncio.create_task(delete_after_delay(msg))
-
-async def _parse_kick_target_and_reason(message: Message, bot, parts: list):
-	if message.mentions:
-		return message.mentions[0], (parts[2] if len(parts) > 2 else "Sans raison")
-	try:
-		user_id = int(parts[1])
-		user = await bot.fetch_user(user_id)
-		return user, (parts[2] if len(parts) > 2 else "Sans raison")
-	except (ValueError, discord.NotFound):
-		return None, None
-
-async def _send_user_not_found_for_kick(channel):
-	embed = discord.Embed(
-		title="❌ Erreur",
-		description="Utilisateur introuvable. Vérifiez la mention ou l'ID Discord.",
-		color=discord.Color.red()
-	)
-	msg = await channel.send(embed)
-	asyncio.create_task(delete_after_delay(msg))
-
-async def _process_kick_success(message: Message, target_member, reason: str, bot):
-	member_obj = message.guild.get_member(target_member.id)
-	if not member_obj:
-		embed = discord.Embed(
-			title="❌ Erreur",
-			description="L'utilisateur n'est pas membre du serveur.",
-			color=discord.Color.red()
-		)
-		msg = await message.channel.send(embed=embed)
-		asyncio.create_task(delete_after_delay(msg))
-		return
-	joined_days = None
-	if member_obj.joined_at:
-		delta = datetime.now(timezone.utc) - (member_obj.joined_at if member_obj.joined_at.tzinfo else member_obj.joined_at.replace(tzinfo=timezone.utc))
-		joined_days = delta.days
-	try:
-		await message.guild.kick(member_obj, reason=reason)
-	except discord.Forbidden:
-		embed = discord.Embed(
-			title="❌ Erreur",
-			description="Je n'ai pas les permissions nécessaires pour expulser cet utilisateur.",
-			color=discord.Color.red()
-		)
-		msg = await message.channel.send(embed=embed)
-		asyncio.create_task(delete_after_delay(msg))
-		return
-	create = ModerationEvent(
-		type='kick',
-		username=target_member.name,
-		discord_id=str(target_member.id),
-		created_at=datetime.now(timezone.utc),
-		reason=reason,
-		staff_id=str(message.author.id),
-		staff_name=message.author.name
-	)
-	db.session.add(create)
-	_commit_with_retry()
-	
-	local_now = _to_local(datetime.now(timezone.utc))
-	embed = discord.Embed(
-		title="👢 Expulsion",
-		description=f"**{target_member.name}** (`{target_member.name}`) a été expulsé du serveur",
-		color=discord.Color.orange(),
-		timestamp=datetime.now(timezone.utc)
-	)
-	embed.add_field(name="👤 Utilisateur", value=f"**{target_member.name}**\n`{target_member.id}`", inline=True)
-	embed.add_field(name="🛡️ Modérateur", value=f"**{message.author.name}**", inline=True)
-	embed.add_field(name="📅 Date et heure", value=local_now.strftime('%d/%m/%Y à %H:%M'), inline=True)
-	if joined_days is not None:
-		embed.add_field(name="⏱️ Membre depuis", value=format_days_to_age(joined_days), inline=True)
-	if reason != "Sans raison":
-		embed.add_field(name="📝 Raison", value=reason, inline=False)
-	embed.set_footer(text=f"ID: {target_member.id} • Serveur: {message.guild.name}")
-	
-	await send_to_moderation_log_channel(bot, embed)
 	await safe_delete_message(message)
 
 def format_days_to_age(days: int) -> str:
@@ -1934,6 +1778,269 @@ class TransferView(View):
 	def __init__(self, message: discord.Message, bot):
 		super().__init__(timeout=180)
 		self.add_item(TransferChannelSelect(message, bot))
+
+class BanAuthorReasonModal(Modal, title="Bannir l'auteur"):
+	reason = TextInput(
+		label="Raison",
+		placeholder="Optionnel",
+		required=False,
+		max_length=500,
+		style=discord.TextStyle.short,
+	)
+
+	def __init__(self, source_message: discord.Message):
+		super().__init__()
+		self.source_message = source_message
+
+	async def on_submit(self, interaction: discord.Interaction):
+		await interaction.response.defer(ephemeral=True)
+		bot = interaction.client
+		guild = interaction.guild
+		if not guild or not isinstance(interaction.user, discord.Member):
+			await interaction.followup.send("❌ Action impossible dans ce contexte.", ephemeral=True)
+			return
+		reason = (self.reason.value or "").strip() or "Via menu contextuel"
+		target = self.source_message.author
+		err = await moderation_perform_ban(bot, guild, interaction.user, target, reason)
+		if err:
+			await interaction.followup.send(f"❌ {err}", ephemeral=True)
+		else:
+			await interaction.followup.send(f"✅ **{target.name}** a été banni.", ephemeral=True)
+
+class KickAuthorReasonModal(Modal, title="Expulser l'auteur"):
+	reason = TextInput(
+		label="Raison",
+		placeholder="Optionnel",
+		required=False,
+		max_length=500,
+		style=discord.TextStyle.short,
+	)
+
+	def __init__(self, source_message: discord.Message):
+		super().__init__()
+		self.source_message = source_message
+
+	async def on_submit(self, interaction: discord.Interaction):
+		await interaction.response.defer(ephemeral=True)
+		bot = interaction.client
+		guild = interaction.guild
+		if not guild or not isinstance(interaction.user, discord.Member):
+			await interaction.followup.send("❌ Action impossible dans ce contexte.", ephemeral=True)
+			return
+		reason = (self.reason.value or "").strip() or "Via menu contextuel"
+		target = self.source_message.author
+		err = await moderation_perform_kick(bot, guild, interaction.user, target, reason)
+		if err:
+			await interaction.followup.send(f"❌ {err}", ephemeral=True)
+		else:
+			await interaction.followup.send(f"✅ **{target.name}** a été expulsé.", ephemeral=True)
+
+class TimeoutAuthorModal(Modal, title="Exclure temporairement"):
+	duration = TextInput(
+		label="Durée (ex. 10m, 1h, 2j)",
+		placeholder="10m",
+		required=True,
+		max_length=12,
+		style=discord.TextStyle.short,
+	)
+	reason = TextInput(
+		label="Raison",
+		placeholder="Optionnel",
+		required=False,
+		max_length=500,
+		style=discord.TextStyle.short,
+	)
+
+	def __init__(self, source_message: discord.Message):
+		super().__init__()
+		self.source_message = source_message
+
+	async def on_submit(self, interaction: discord.Interaction):
+		await interaction.response.defer(ephemeral=True)
+		bot = interaction.client
+		guild = interaction.guild
+		if not guild or not isinstance(interaction.user, discord.Member):
+			await interaction.followup.send("❌ Action impossible dans ce contexte.", ephemeral=True)
+			return
+		timeout_seconds = parse_timeout_from_args(self.duration.value.strip())
+		if not timeout_seconds:
+			await interaction.followup.send(
+				"❌ Durée invalide. Utilisez un format comme `10m`, `1h`, `60s`, `2j`.",
+				ephemeral=True,
+			)
+			return
+		reason = (self.reason.value or "").strip() or "Sans raison"
+		target = self.source_message.author
+		err = await moderation_perform_timeout(bot, guild, interaction.user, target, reason, timeout_seconds)
+		if err:
+			await interaction.followup.send(f"❌ {err}", ephemeral=True)
+		else:
+			await interaction.followup.send(
+				f"✅ **{target.name}** a été exclu temporairement ({format_timeout_duration(timeout_seconds)}).",
+				ephemeral=True,
+			)
+
+def _interaction_must_be_staff_member(interaction: discord.Interaction) -> bool:
+	return isinstance(interaction.user, discord.Member) and has_staff_role(interaction.user.roles)
+
+@app_commands.command(name="ban", description="Bannit définitivement un membre du serveur.")
+@app_commands.guild_only()
+@app_commands.default_permissions(ban_members=True)
+@app_commands.describe(utilisateur="Membre à bannir", raison="Raison enregistrée dans les logs")
+async def moderation_slash_ban(interaction: discord.Interaction, utilisateur: discord.Member, raison: Optional[str] = None):
+	if not ConfigurationHelper().getValue('moderation_ban_enable'):
+		await interaction.response.send_message("❌ La modération (ban) n'est pas activée sur ce serveur.", ephemeral=True)
+		return
+	if not _interaction_must_be_staff_member(interaction):
+		await interaction.response.send_message(
+			"❌ Vous n'avez pas les permissions nécessaires pour utiliser cette commande.",
+			ephemeral=True,
+		)
+		return
+	if utilisateur.bot:
+		await interaction.response.send_message("❌ Impossible de bannir un bot avec cette commande.", ephemeral=True)
+		return
+	reason = _normalized_slash_reason(raison)
+	await interaction.response.defer(ephemeral=True)
+	err = await moderation_perform_ban(interaction.client, interaction.guild, interaction.user, utilisateur, reason)
+	if err:
+		await interaction.followup.send(f"❌ {err}", ephemeral=True)
+	else:
+		await interaction.followup.send(f"✅ **{utilisateur.name}** a été banni.", ephemeral=True)
+
+@app_commands.command(name="kick", description="Expulse un membre du serveur.")
+@app_commands.guild_only()
+@app_commands.default_permissions(kick_members=True)
+@app_commands.describe(utilisateur="Membre à expulser", raison="Raison enregistrée dans les logs")
+async def moderation_slash_kick(interaction: discord.Interaction, utilisateur: discord.Member, raison: Optional[str] = None):
+	if not ConfigurationHelper().getValue('moderation_kick_enable'):
+		await interaction.response.send_message("❌ La modération (kick) n'est pas activée sur ce serveur.", ephemeral=True)
+		return
+	if not _interaction_must_be_staff_member(interaction):
+		await interaction.response.send_message(
+			"❌ Vous n'avez pas les permissions nécessaires pour utiliser cette commande.",
+			ephemeral=True,
+		)
+		return
+	if utilisateur.bot:
+		await interaction.response.send_message("❌ Impossible d'expulser un bot avec cette commande.", ephemeral=True)
+		return
+	reason = _normalized_slash_reason(raison)
+	await interaction.response.defer(ephemeral=True)
+	err = await moderation_perform_kick(interaction.client, interaction.guild, interaction.user, utilisateur, reason)
+	if err:
+		await interaction.followup.send(f"❌ {err}", ephemeral=True)
+	else:
+		await interaction.followup.send(f"✅ **{utilisateur.name}** a été expulsé.", ephemeral=True)
+
+@app_commands.command(name="timeout", description="Exclut temporairement un membre (time out).")
+@app_commands.guild_only()
+@app_commands.default_permissions(moderate_members=True)
+@app_commands.describe(
+	utilisateur="Membre à exclure temporairement",
+	duree="Durée : 10m, 1h, 60s, 2j, etc.",
+	raison="Raison enregistrée dans les logs",
+)
+async def moderation_slash_timeout(
+	interaction: discord.Interaction,
+	utilisateur: discord.Member,
+	duree: str,
+	raison: Optional[str] = None,
+):
+	if not ConfigurationHelper().getValue('moderation_enable'):
+		await interaction.response.send_message("❌ La modération n'est pas activée sur ce serveur.", ephemeral=True)
+		return
+	if not _interaction_must_be_staff_member(interaction):
+		await interaction.response.send_message(
+			"❌ Vous n'avez pas les permissions nécessaires pour utiliser cette commande.",
+			ephemeral=True,
+		)
+		return
+	if utilisateur.bot:
+		await interaction.response.send_message("❌ Impossible d'exclure temporairement un bot.", ephemeral=True)
+		return
+	timeout_seconds = parse_timeout_from_args(duree.strip())
+	if not timeout_seconds:
+		await interaction.response.send_message(
+			"❌ Durée invalide. Exemples : `10m`, `1h`, `60s`, `2j`.",
+			ephemeral=True,
+		)
+		return
+	reason = _normalized_slash_reason(raison)
+	await interaction.response.defer(ephemeral=True)
+	err = await moderation_perform_timeout(
+		interaction.client, interaction.guild, interaction.user, utilisateur, reason, timeout_seconds
+	)
+	if err:
+		await interaction.followup.send(f"❌ {err}", ephemeral=True)
+	else:
+		await interaction.followup.send(
+			f"✅ **{utilisateur.name}** a été exclu temporairement ({format_timeout_duration(timeout_seconds)}).",
+			ephemeral=True,
+		)
+
+@app_commands.context_menu(name="Bannir l'auteur")
+@app_commands.guild_only()
+@app_commands.default_permissions(ban_members=True)
+async def moderation_ctx_ban_author(interaction: discord.Interaction, message: discord.Message):
+	if not ConfigurationHelper().getValue('moderation_ban_enable'):
+		await interaction.response.send_message("❌ La modération (ban) n'est pas activée sur ce serveur.", ephemeral=True)
+		return
+	if not _interaction_must_be_staff_member(interaction):
+		await interaction.response.send_message(
+			"❌ Vous n'avez pas les permissions nécessaires pour utiliser cette commande.",
+			ephemeral=True,
+		)
+		return
+	if message.author.bot:
+		await interaction.response.send_message("❌ Impossible de bannir un bot.", ephemeral=True)
+		return
+	if message.author.id == interaction.client.user.id:
+		await interaction.response.send_message("❌ Impossible d'utiliser cette action sur ce message.", ephemeral=True)
+		return
+	await interaction.response.send_modal(BanAuthorReasonModal(message))
+
+@app_commands.context_menu(name="Expulser l'auteur")
+@app_commands.guild_only()
+@app_commands.default_permissions(kick_members=True)
+async def moderation_ctx_kick_author(interaction: discord.Interaction, message: discord.Message):
+	if not ConfigurationHelper().getValue('moderation_kick_enable'):
+		await interaction.response.send_message("❌ La modération (kick) n'est pas activée sur ce serveur.", ephemeral=True)
+		return
+	if not _interaction_must_be_staff_member(interaction):
+		await interaction.response.send_message(
+			"❌ Vous n'avez pas les permissions nécessaires pour utiliser cette commande.",
+			ephemeral=True,
+		)
+		return
+	if message.author.bot:
+		await interaction.response.send_message("❌ Impossible d'expulser un bot.", ephemeral=True)
+		return
+	if message.author.id == interaction.client.user.id:
+		await interaction.response.send_message("❌ Impossible d'utiliser cette action sur ce message.", ephemeral=True)
+		return
+	await interaction.response.send_modal(KickAuthorReasonModal(message))
+
+@app_commands.context_menu(name="Exclure temporairement")
+@app_commands.guild_only()
+@app_commands.default_permissions(moderate_members=True)
+async def moderation_ctx_timeout_author(interaction: discord.Interaction, message: discord.Message):
+	if not ConfigurationHelper().getValue('moderation_enable'):
+		await interaction.response.send_message("❌ La modération n'est pas activée sur ce serveur.", ephemeral=True)
+		return
+	if not _interaction_must_be_staff_member(interaction):
+		await interaction.response.send_message(
+			"❌ Vous n'avez pas les permissions nécessaires pour utiliser cette commande.",
+			ephemeral=True,
+		)
+		return
+	if message.author.bot:
+		await interaction.response.send_message("❌ Impossible d'exclure temporairement un bot.", ephemeral=True)
+		return
+	if message.author.id == interaction.client.user.id:
+		await interaction.response.send_message("❌ Impossible d'utiliser cette action sur ce message.", ephemeral=True)
+		return
+	await interaction.response.send_modal(TimeoutAuthorModal(message))
 
 @app_commands.context_menu(name="Déplacer le message")
 @app_commands.default_permissions(manage_messages=True)

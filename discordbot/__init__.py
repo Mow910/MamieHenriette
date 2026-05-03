@@ -14,16 +14,19 @@ from discordbot.moderation import (
 	handle_warning_command,
 	handle_remove_warning_command,
 	handle_list_warnings_command,
-	handle_ban_command,
-	handle_kick_command,
 	handle_unban_command,
 	handle_inspect_command,
 	handle_ban_list_command,
 	handle_staff_help_command,
-	handle_timeout_command,
 	handle_say_command,
 	handle_transfer_command,
-	transfer_message_context_menu
+	transfer_message_context_menu,
+	moderation_slash_ban,
+	moderation_slash_kick,
+	moderation_slash_timeout,
+	moderation_ctx_ban_author,
+	moderation_ctx_kick_author,
+	moderation_ctx_timeout_author,
 )
 from discordbot.welcome import sendWelcomeMessage, sendLeaveMessage, updateInviteCache
 from discordbot.patreon import checkPatreonPosts
@@ -38,8 +41,17 @@ class DiscordBot(discord.Client):
 		self.synced = False
 	
 	async def setup_hook(self):
-		self.tree.add_command(transfer_message_context_menu)
-		logging.info("Commande contextuelle 'Déplacer le message' ajoutée au CommandTree")
+		for cmd in (
+			transfer_message_context_menu,
+			moderation_slash_ban,
+			moderation_slash_kick,
+			moderation_slash_timeout,
+			moderation_ctx_ban_author,
+			moderation_ctx_kick_author,
+			moderation_ctx_timeout_author,
+		):
+			self.tree.add_command(cmd)
+		logging.info("Commandes d'application (transfert, ban, kick, timeout) ajoutées au CommandTree")
 	
 	async def on_ready(self):
 		logging.info(f'Connecté en tant que {self.user} (ID: {self.user.id})')
@@ -177,10 +189,6 @@ async def on_message(message: Message):
 			await handle_warning_command(message, bot)
 			return
 
-		if command_name in ['!to', '!timeout']:
-			await handle_timeout_command(message, bot)
-			return
-
 		if command_name in ['!delaverto', '!removewarn', '!unwarn']:
 			await handle_remove_warning_command(message, bot)
 			return
@@ -190,20 +198,11 @@ async def on_message(message: Message):
 			return
 	
 	if ConfigurationHelper().getValue('moderation_ban_enable'):
-		if command_name == '!ban':
-			await handle_ban_command(message, bot)
-			return
-		
 		if command_name == '!unban':
 			await handle_unban_command(message, bot)
 			return
 		if command_name == '!banlist':
 			await handle_ban_list_command(message, bot)
-			return
-	
-	if ConfigurationHelper().getValue('moderation_kick_enable'):
-		if command_name == '!kick':
-			await handle_kick_command(message, bot)
 			return
 	
 	if ConfigurationHelper().getValue('moderation_enable'):
