@@ -61,42 +61,40 @@ def _build_protondb_embed(games: List[Any]) -> discord.Embed:
 
 
 async def _protondb_search_followup(interaction: discord.Interaction, query: str) -> None:
+	# Une seule réponse éditée (pas de followups en chaîne) : évite les fils « message introuvable »
+	# et supprime le besoin d’un message séparé « Recherche en cours… ».
 	await interaction.response.defer()
-	search_msg = None
-	try:
-		search_msg = await interaction.followup.send(f"🔍 Recherche en cours pour **{query}**...", wait=True)
-	except Exception as e:
-		logging.error(f"ProtonDB : message de recherche : {e}")
-
 	try:
 		games = searhProtonDb(query)
 	except Exception as e:
 		logging.error(f"ProtonDB : searhProtonDb : {e}")
 		games = []
 
-	if search_msg:
-		try:
-			await search_msg.delete()
-		except Exception:
-			pass
-
 	if len(games) == 0:
-		await interaction.followup.send(
-			f"{interaction.user.mention} Je n'ai pas trouvé de jeux correspondant à **{query}**. Es-tu sûr que le jeu est disponible sur Steam ?",
-			suppress_embeds=True,
-		)
+		try:
+			await interaction.edit_original_response(
+				content=(
+					f"{interaction.user.mention} Je n'ai pas trouvé de jeux correspondant à **{query}**. "
+					"Es-tu sûr que le jeu est disponible sur Steam ?"
+				),
+				embed=None,
+			)
+		except Exception as e:
+			logging.error(f"ProtonDB : edit_original_response (vide) : {e}")
 		return
 
 	embed = _build_protondb_embed(games)
 	try:
-		await interaction.followup.send(embed=embed)
+		await interaction.edit_original_response(content=None, embed=embed)
 	except Exception as e:
-		logging.error(f"ProtonDB : envoi embed : {e}")
+		logging.error(f"ProtonDB : edit_original_response (embed) : {e}")
+		try:
+			await interaction.followup.send(embed=embed)
+		except Exception as e2:
+			logging.error(f"ProtonDB : followup de secours : {e2}")
 
 
-@app_commands.command(name="protondb", description="Recherche un jeu sur ProtonDB (compatibilité Linux / Steam).")
-@app_commands.describe(jeu="Nom du jeu (ex. Elden Ring)")
-async def protondb_slash_command(interaction: discord.Interaction, jeu: str):
+async def _protondb_slash_impl(interaction: discord.Interaction, jeu: str, exemple: str) -> None:
 	if not ConfigurationHelper().getValue('proton_db_enable_enable'):
 		await interaction.response.send_message(
 			"❌ La commande ProtonDB n'est pas activée.",
@@ -106,26 +104,20 @@ async def protondb_slash_command(interaction: discord.Interaction, jeu: str):
 	query = jeu.strip()
 	if not query:
 		await interaction.response.send_message(
-			"⚠️ Indique le nom d'un jeu.\nExemple : `/protondb jeu:Elden Ring`",
+			f"⚠️ Indique le nom d'un jeu.\nExemple : `{exemple}`",
 			ephemeral=True,
 		)
 		return
 	await _protondb_search_followup(interaction, query)
 
 
-@app_commands.context_menu(name="Rechercher sur ProtonDB")
-async def protondb_message_context_menu(interaction: discord.Interaction, message: discord.Message):
-	if not ConfigurationHelper().getValue('proton_db_enable_enable'):
-		await interaction.response.send_message(
-			"❌ La commande ProtonDB n'est pas activée.",
-			ephemeral=True,
-		)
-		return
-	query = (message.clean_content or "").strip()
-	if not query:
-		await interaction.response.send_message(
-			"❌ Ce message n'a pas de texte exploitable pour une recherche (ou seulement des pièces jointes / mentions vides).",
-			ephemeral=True,
-		)
-		return
-	await _protondb_search_followup(interaction, query)
+@app_commands.command(name="protondb", description="Recherche un jeu sur ProtonDB (compatibilité Linux / Steam).")
+@app_commands.describe(jeu="Nom du jeu (ex. Elden Ring)")
+async def protondb_slash_command(interaction: discord.Interaction, jeu: str):
+	await _protondb_slash_impl(interaction, jeu, "/protondb jeu:Elden Ring")
+
+
+@app_commands.command(name="pdb", description="Alias de /protondb — recherche un jeu sur ProtonDB.")
+@app_commands.describe(jeu="Nom du jeu (ex. Elden Ring)")
+async def pdb_slash_command(interaction: discord.Interaction, jeu: str):
+	await _protondb_slash_impl(interaction, jeu, "/pdb jeu:Elden Ring")

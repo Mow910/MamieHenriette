@@ -910,9 +910,8 @@ async def handle_staff_help_command(message: Message, bot):
 	if ConfigurationHelper().getValue('proton_db_enable_enable'):
 		public_commands.append(
 			"**🎮 ProtonDB**\n"
-			"• `/protondb` — recherche par nom de jeu\n"
-			"• Clic droit sur un message → Applications → **Rechercher sur ProtonDB**\n"
-			"Ex. `/protondb` avec le paramètre *jeu* : Elden Ring"
+			"• `/protondb` ou `/pdb` — recherche par nom de jeu\n"
+			"Ex. `/pdb` avec le paramètre *jeu* : Elden Ring"
 		)
 	
 	from database.models import Commande
@@ -998,6 +997,7 @@ async def handle_staff_help_command(message: Message, bot):
 		embed.add_field(
 			name="💬 Autres",
 			value=(
+				"• `/say` — salon + message (équivalent de `!say`)\n"
 				"• `!say #channel message`\n"
 				"  Envoie un message en tant que bot\n"
 				"  Ex: `!say #annonces Nouvelle fonctionnalité !`\n\n"
@@ -1978,6 +1978,58 @@ async def moderation_slash_timeout(
 			f"✅ **{utilisateur.name}** a été exclu temporairement ({format_timeout_duration(timeout_seconds)}).",
 			ephemeral=True,
 		)
+
+@app_commands.command(name="say", description="Envoie un message dans un salon ou un fil (équivalent de !say).")
+@app_commands.guild_only()
+@app_commands.default_permissions(manage_messages=True)
+@app_commands.describe(canal="Salon ou fil cible", message="Contenu du message à envoyer")
+async def moderation_slash_say(
+	interaction: discord.Interaction,
+	canal: discord.TextChannel | discord.Thread,
+	message: str,
+):
+	if not _interaction_must_be_staff_member(interaction):
+		await interaction.response.send_message(
+			"❌ Vous n'avez pas les permissions nécessaires pour utiliser cette commande.",
+			ephemeral=True,
+		)
+		return
+	if interaction.guild and getattr(canal, "guild", None) and canal.guild.id != interaction.guild.id:
+		await interaction.response.send_message(
+			"❌ Vous ne pouvez cibler qu'un salon de ce serveur.",
+			ephemeral=True,
+		)
+		return
+	text = message.strip()
+	if not text:
+		await interaction.response.send_message("❌ Le message ne peut pas être vide.", ephemeral=True)
+		return
+	if len(text) > 2000:
+		await interaction.response.send_message(
+			"❌ Le message dépasse la limite de 2000 caractères.",
+			ephemeral=True,
+		)
+		return
+	try:
+		await canal.send(text)
+	except discord.Forbidden:
+		await interaction.response.send_message(
+			"❌ Je n'ai pas les permissions pour écrire dans ce canal.",
+			ephemeral=True,
+		)
+		return
+	except Exception as e:
+		logging.error(f"Slash say : {e}")
+		await interaction.response.send_message(
+			f"❌ Impossible d'envoyer le message : {e}",
+			ephemeral=True,
+		)
+		return
+	try:
+		mention = canal.mention
+	except Exception:
+		mention = f"#{canal.name}"
+	await interaction.response.send_message(f"✅ Message envoyé dans {mention}.", ephemeral=True)
 
 @app_commands.context_menu(name="Bannir l'auteur")
 @app_commands.guild_only()

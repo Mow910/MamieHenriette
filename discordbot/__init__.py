@@ -27,12 +27,13 @@ from discordbot.moderation import (
 	moderation_ctx_ban_author,
 	moderation_ctx_kick_author,
 	moderation_ctx_timeout_author,
+	moderation_slash_say,
 )
 from discordbot.welcome import sendWelcomeMessage, sendLeaveMessage, updateInviteCache
 from discordbot.patreon import checkPatreonPosts
 from discordbot.youtube import checkYouTubeVideos
 from discordbot.auto_rooms import on_voice_state_update_auto_rooms, on_raw_reaction_add_auto_rooms, on_message_auto_rooms, cleanup_orphaned_auto_rooms
-from discordbot.protondb_discord import protondb_slash_command, protondb_message_context_menu
+from discordbot.protondb_discord import protondb_slash_command, pdb_slash_command
 
 class DiscordBot(discord.Client):
 	def __init__(self, *, intents: discord.Intents):
@@ -49,8 +50,9 @@ class DiscordBot(discord.Client):
 			moderation_ctx_ban_author,
 			moderation_ctx_kick_author,
 			moderation_ctx_timeout_author,
+			moderation_slash_say,
 			protondb_slash_command,
-			protondb_message_context_menu,
+			pdb_slash_command,
 		):
 			self.tree.add_command(cmd)
 		logging.info("Commandes d'application (transfert, modération, ProtonDB) ajoutées au CommandTree")
