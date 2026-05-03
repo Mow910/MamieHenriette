@@ -30,7 +30,6 @@ from discordbot.moderation import (
 	moderation_slash_warn,
 	moderation_slash_inspect,
 	moderation_ctx_warn_author,
-	moderation_ctx_inspect_author,
 	moderation_slash_say,
 )
 from discordbot.welcome import sendWelcomeMessage, sendLeaveMessage, updateInviteCache
@@ -57,7 +56,6 @@ class DiscordBot(discord.Client):
 			moderation_slash_warn,
 			moderation_slash_inspect,
 			moderation_ctx_warn_author,
-			moderation_ctx_inspect_author,
 			moderation_slash_say,
 			protondb_slash_command,
 			pdb_slash_command,

@@ -1005,7 +1005,6 @@ async def handle_staff_help_command(message: Message, bot):
 				name="🔎 Inspection",
 				value=(
 					"• `/inspect` — membre (réponse visible seulement par vous)\n"
-					"• Clic droit sur un message → Applications → **Inspecter l'auteur**\n"
 					"• `!inspect @utilisateur` ou `!inspect id`\n"
 					"  Affiche les infos dans le salon puis supprime la commande\n"
 					"Ex: `!inspect @User`"
@@ -2202,22 +2201,7 @@ async def moderation_ctx_warn_author(interaction: discord.Interaction, message: 
 		return
 	await interaction.response.send_modal(WarnAuthorModal(message))
 
-@app_commands.context_menu(name="Inspecter l'auteur")
-@app_commands.guild_only()
-@app_commands.default_permissions(manage_messages=True)
-async def moderation_ctx_inspect_author(interaction: discord.Interaction, message: discord.Message):
-	if not ConfigurationHelper().getValue('moderation_enable'):
-		await interaction.response.send_message("❌ La modération n'est pas activée sur ce serveur.", ephemeral=True)
-		return
-	if not _interaction_must_be_staff_member(interaction):
-		await interaction.response.send_message(
-			"❌ Vous n'avez pas les permissions nécessaires pour utiliser cette commande.",
-			ephemeral=True,
-		)
-		return
-	await interaction.response.defer(ephemeral=True)
-	embed = await build_inspect_embed_for_user(interaction.client, interaction.guild, message.author)
-	await interaction.followup.send(embed=embed, ephemeral=True)
+# Pas de menu contextuel « Inspecter l'auteur » : Discord limite à 5 les commandes message globales (transfert, ban, kick, timeout, avertir).
 
 @app_commands.context_menu(name="Bannir l'auteur")
 @app_commands.guild_only()
