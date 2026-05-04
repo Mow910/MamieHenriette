@@ -76,18 +76,13 @@
 			<div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 space-y-4">
 				<h3 class="font-medium text-gray-800 dark:text-gray-200">Règlement (embed + bouton)</h3>
 				<p class="text-sm text-gray-600 dark:text-gray-400">
-					Publie un message fixe dans un canal avec un embed et un bouton « J'ai lu le règlement ». Par défaut, le <strong>rôle d'arrivée</strong> n'est donné qu'au <strong>clic sur le bouton</strong> (pas automatiquement en rejoignant le serveur). Tu peux cocher l'option ci-dessous pour l'attribuer aussi dès le join. Si un canal « présentation » est configuré, le premier message du membre (avec le rôle d'arrivée) dans ce canal lui attribue le rôle membre validé et retire le rôle d'arrivée — utilise un canal où les nouveaux peuvent écrire (souvent différent du salon charte en lecture seule).
+					Le <strong>rôle d'arrivée</strong> est attribué <strong>dès qu'un membre rejoint le serveur</strong>. Le <strong>rôle membre validé</strong> est attribué <strong>uniquement</strong> quand il clique sur le bouton « J'ai lu le règlement » (le rôle d'arrivée est alors retiré s'il est encore présent). Le canal présentation sert uniquement d'indication dans le message de confirmation après le clic.
 				</p>
 				<input type="hidden" name="rules_ack_section_in_form" value="1">
 				<label class="flex items-center gap-2 cursor-pointer">
 					<input type="checkbox" name="rules_ack_enable" {% if configuration.getValue('rules_ack_enable') %}checked{% endif %}
 						class="w-5 h-5 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-700">
 					<span class="text-sm text-gray-700 dark:text-gray-300">Activer le règlement avec bouton</span>
-				</label>
-				<label class="flex items-center gap-2 cursor-pointer">
-					<input type="checkbox" name="rules_arrival_on_join_enable" {% if configuration.getValue('rules_arrival_on_join_enable') %}checked{% endif %}
-						class="w-5 h-5 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-700">
-					<span class="text-sm text-gray-700 dark:text-gray-300">Donner le rôle d'arrivée dès qu'un membre rejoint le serveur (en plus du bouton)</span>
 				</label>
 				<div>
 					<label for="rules_channel_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Canal du règlement (message + bouton)</label>
@@ -121,7 +116,7 @@
 				</div>
 				<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 					<div>
-						<label for="rules_arrival_role_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Rôle d'arrivée (bouton, et à la connexion si l'option ci-dessus est cochée)</label>
+						<label for="rules_arrival_role_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Rôle d'arrivée (à la connexion uniquement)</label>
 						<select name="rules_arrival_role_id" id="rules_arrival_role_id"
 							class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all">
 							<option value="">— Aucun —</option>
@@ -135,7 +130,7 @@
 						</select>
 					</div>
 					<div>
-						<label for="rules_validated_role_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Rôle membre validé (accès au reste du serveur)</label>
+						<label for="rules_validated_role_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Rôle membre validé (au clic sur le bouton uniquement)</label>
 						<select name="rules_validated_role_id" id="rules_validated_role_id"
 							class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all">
 							<option value="">— Aucun —</option>
@@ -150,7 +145,7 @@
 					</div>
 				</div>
 				<div>
-					<label for="rules_presentation_channel_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Canal présentation (optionnel)</label>
+					<label for="rules_presentation_channel_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Canal présentation (optionnel, texte d'aide après le bouton)</label>
 					<select name="rules_presentation_channel_id" id="rules_presentation_channel_id"
 						class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all">
 						<option value="">— Désactivé —</option>
@@ -158,7 +153,7 @@
 						<option value="{{ channel.id }}" {% if configuration.getIntValue('rules_presentation_channel_id') == channel.id %}selected{% endif %}>{{ channel.name }}</option>
 						{% endfor %}
 					</select>
-					<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Si renseigné : premier message du membre (qui a le rôle d'arrivée) dans ce canal → ajout du rôle validé et retrait du rôle d'arrivée.</p>
+					<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Mentionné dans le message éphémère après le clic (« Tu peux aller te présenter dans … »). Aucun rôle n'est attribué automatiquement sur ce canal.</p>
 				</div>
 			</div>
 

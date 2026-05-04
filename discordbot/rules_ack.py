@@ -1,4 +1,4 @@
-# Règlement Discord : embed + bouton persistant, rôles arrivée / validé, promo sur canal présentation.
+# Règlement Discord : rôle d'arrivée à la connexion, rôle validé au clic sur le bouton.
 import asyncio
 import logging
 
@@ -38,19 +38,13 @@ def register_persistent_rules_view(client: discord.Client) -> None:
 	client.add_view(RulesAcceptView(label))
 
 
-def _rules_ack_success_text(
-	role: discord.Role,
+def _rules_ack_button_success_text(
+	validated_role: discord.Role,
 	presentation_ch: TextChannel | None,
-	validated_role: discord.Role | None,
 ) -> str:
-	base = f"c'est bon 😌 tu as maintenant le rôle **{role.name}**."
-	if presentation_ch and validated_role:
-		return (
-			f"{base} va te présenter dans {presentation_ch.mention} "
-			f"pour recevoir **{validated_role.name}**."
-		)
+	base = f"c'est bon 😌 tu as maintenant le rôle **{validated_role.name}**."
 	if presentation_ch:
-		return f"{base} va te présenter dans {presentation_ch.mention}."
+		return f"{base} Tu peux aller te présenter dans {presentation_ch.mention}."
 	return base
 
 
@@ -78,30 +72,32 @@ async def handle_rules_accept(interaction: discord.Interaction) -> None:
 		await interaction.response.send_message("Cette fonctionnalité est désactivée.", ephemeral=True)
 		return
 
-	if not arrival_id:
-		await interaction.response.send_message("Rôle d'arrivée non configuré.", ephemeral=True)
+	if not validated_id:
+		await interaction.response.send_message("Rôle membre validé non configuré.", ephemeral=True)
 		return
 
-	role = interaction.guild.get_role(arrival_id)
-	if not role:
-		await interaction.response.send_message("Rôle d'arrivée introuvable sur ce serveur.", ephemeral=True)
+	validated_role = interaction.guild.get_role(validated_id)
+	if not validated_role:
+		await interaction.response.send_message("Rôle membre validé introuvable sur ce serveur.", ephemeral=True)
 		return
+
+	arrival_role = interaction.guild.get_role(arrival_id) if arrival_id else None
 
 	presentation_ch = interaction.guild.get_channel(presentation_id)
 	presentation_ch = presentation_ch if isinstance(presentation_ch, TextChannel) else None
-	validated_role = interaction.guild.get_role(validated_id) if validated_id else None
-	success_text = _rules_ack_success_text(role, presentation_ch, validated_role)
+	success_text = _rules_ack_button_success_text(validated_role, presentation_ch)
 
-	if role in member.roles:
-		# Idempotent : double clic, rôle auto-attribué à l'entrée, ou cache corrigé par fetch_member.
+	if validated_role in member.roles:
 		await interaction.response.send_message(success_text, ephemeral=True)
 		return
 
 	try:
-		await member.add_roles(role, reason="Acceptation du règlement (bouton)")
+		await member.add_roles(validated_role, reason="Acceptation du règlement (bouton)")
+		if arrival_role and arrival_role in member.roles:
+			await member.remove_roles(arrival_role, reason="Passage membre validé après charte")
 	except discord.Forbidden:
 		await interaction.response.send_message(
-			"Je n'ai pas la permission de t'attribuer ce rôle (rôle du bot trop bas ou « Gérer les rôles » manquant).",
+			"Je n'ai pas la permission de modifier tes rôles (rôle du bot trop bas ou « Gérer les rôles » manquant).",
 			ephemeral=True,
 		)
 		return
@@ -175,12 +171,10 @@ def publish_rules_embed_sync(bot: discord.Client) -> tuple[bool, str]:
 
 
 async def assign_rules_arrival_on_join(bot: discord.Client, member: discord.Member) -> None:
-	"""Si activé dans la config, attribue le rôle d'arrivée dès le join (sans attendre le bouton)."""
+	"""Attribue uniquement le rôle d'arrivée à la connexion (le rôle validé vient du bouton)."""
 	with webapp.app_context():
 		config = ConfigurationHelper()
 		if not config.getValue("rules_ack_enable"):
-			return
-		if not config.getValue("rules_arrival_on_join_enable"):
 			return
 		arrival_id = config.getIntValue("rules_arrival_role_id")
 		validated_id = config.getIntValue("rules_validated_role_id")
@@ -212,41 +206,3 @@ async def assign_rules_arrival_on_join(bot: discord.Client, member: discord.Memb
 		)
 	except discord.HTTPException as e:
 		logging.warning("assign_rules_arrival_on_join: %s", e)
-
-
-async def on_presentation_message(bot: discord.Client, message: discord.Message) -> None:
-	if message.author.bot:
-		return
-
-	with webapp.app_context():
-		config = ConfigurationHelper()
-		if not config.getValue("rules_ack_enable"):
-			return
-		presentation_id = config.getIntValue("rules_presentation_channel_id")
-		if not presentation_id or message.channel.id != presentation_id:
-			return
-		arrival_id = config.getIntValue("rules_arrival_role_id")
-		validated_id = config.getIntValue("rules_validated_role_id")
-
-	if not validated_id or not arrival_id:
-		return
-
-	member = message.author
-	if not isinstance(member, discord.Member):
-		return
-
-	arrival_role = message.guild.get_role(arrival_id)
-	validated_role = message.guild.get_role(validated_id)
-	if not validated_role or not arrival_role:
-		return
-	if arrival_role not in member.roles:
-		return
-	if validated_role in member.roles:
-		return
-
-	try:
-		await member.add_roles(validated_role, reason="Présentation dans le canal configuré")
-		if arrival_role:
-			await member.remove_roles(arrival_role, reason="Membre validé après présentation")
-	except (discord.Forbidden, discord.HTTPException) as e:
-		logging.warning("on_presentation_message: %s", e)
