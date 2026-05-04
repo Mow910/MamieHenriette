@@ -38,12 +38,34 @@ def register_persistent_rules_view(client: discord.Client) -> None:
 	client.add_view(RulesAcceptView(label))
 
 
+def _rules_ack_success_text(
+	role: discord.Role,
+	presentation_ch: TextChannel | None,
+	validated_role: discord.Role | None,
+) -> str:
+	base = f"c'est bon 😌 tu as maintenant le rôle **{role.name}**."
+	if presentation_ch and validated_role:
+		return (
+			f"{base} va te présenter dans {presentation_ch.mention} "
+			f"pour recevoir **{validated_role.name}**."
+		)
+	if presentation_ch:
+		return f"{base} va te présenter dans {presentation_ch.mention}."
+	return base
+
+
 async def handle_rules_accept(interaction: discord.Interaction) -> None:
-	if not interaction.guild or not isinstance(interaction.user, discord.Member):
+	if not interaction.guild:
 		await interaction.response.send_message("Action impossible dans ce contexte.", ephemeral=True)
 		return
 
-	member = interaction.user
+	try:
+		member = await interaction.guild.fetch_member(interaction.user.id)
+	except (discord.NotFound, discord.HTTPException):
+		member = interaction.user if isinstance(interaction.user, discord.Member) else None
+	if member is None:
+		await interaction.response.send_message("Action impossible dans ce contexte.", ephemeral=True)
+		return
 
 	with webapp.app_context():
 		config = ConfigurationHelper()
@@ -65,8 +87,14 @@ async def handle_rules_accept(interaction: discord.Interaction) -> None:
 		await interaction.response.send_message("Rôle d'arrivée introuvable sur ce serveur.", ephemeral=True)
 		return
 
+	presentation_ch = interaction.guild.get_channel(presentation_id)
+	presentation_ch = presentation_ch if isinstance(presentation_ch, TextChannel) else None
+	validated_role = interaction.guild.get_role(validated_id) if validated_id else None
+	success_text = _rules_ack_success_text(role, presentation_ch, validated_role)
+
 	if role in member.roles:
-		await interaction.response.send_message("Tu as déjà accepté le règlement.", ephemeral=True)
+		# Idempotent : double clic, rôle auto-attribué à l'entrée, ou cache corrigé par fetch_member.
+		await interaction.response.send_message(success_text, ephemeral=True)
 		return
 
 	try:
@@ -81,22 +109,7 @@ async def handle_rules_accept(interaction: discord.Interaction) -> None:
 		await interaction.response.send_message(f"Erreur Discord : {e}", ephemeral=True)
 		return
 
-	presentation_ch = interaction.guild.get_channel(presentation_id)
-	presentation_ch = presentation_ch if isinstance(presentation_ch, TextChannel) else None
-	validated_role = interaction.guild.get_role(validated_id) if validated_id else None
-
-	base = f"C'est bon 😌 tu as maintenant le rôle **{role.name}**."
-	if presentation_ch and validated_role:
-		text = (
-			f"{base} va te présenter dans {presentation_ch.mention} "
-			f"pour recevoir **{validated_role.name}**."
-		)
-	elif presentation_ch:
-		text = f"{base} va te présenter dans {presentation_ch.mention}."
-	else:
-		text = base
-
-	await interaction.response.send_message(text, ephemeral=True)
+	await interaction.response.send_message(success_text, ephemeral=True)
 
 
 async def publish_rules_embed(bot: discord.Client) -> tuple[bool, str]:
