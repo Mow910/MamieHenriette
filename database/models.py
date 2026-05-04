@@ -60,7 +60,7 @@ class WebappUser(db.Model, UserMixin):
 
 class Configuration(db.Model): 
 	key = db.Column(db.String(32), primary_key=True)
-	value = db.Column(db.String(512))
+	value = db.Column(db.Text)
 
 class Humeur(db.Model):
 	id = db.Column(db.Integer, primary_key=True)

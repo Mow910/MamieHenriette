@@ -1,7 +1,7 @@
 
 CREATE TABLE IF NOT EXISTS `configuration` (
 	`key` VARCHAR(32) PRIMARY KEY,
-	`value` VARCHAR(512) NOT NULL
+	`value` TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS `game_alias` (

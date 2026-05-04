@@ -74,6 +74,90 @@
 			</div>
 
 			<div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 space-y-4">
+				<h3 class="font-medium text-gray-800 dark:text-gray-200">Règlement (embed + bouton)</h3>
+				<p class="text-sm text-gray-600 dark:text-gray-400">
+					Publie un message fixe dans un canal avec un embed et un bouton « J'ai lu le règlement ». Au clic, le membre reçoit le rôle d'arrivée. Si un canal « présentation » est configuré, le premier message du membre dans ce canal lui attribue le rôle membre validé et retire le rôle d'arrivée.
+				</p>
+				<input type="hidden" name="rules_ack_section_in_form" value="1">
+				<label class="flex items-center gap-2 cursor-pointer">
+					<input type="checkbox" name="rules_ack_enable" {% if configuration.getValue('rules_ack_enable') %}checked{% endif %}
+						class="w-5 h-5 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-700">
+					<span class="text-sm text-gray-700 dark:text-gray-300">Activer le règlement avec bouton</span>
+				</label>
+				<div>
+					<label for="rules_channel_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Canal du règlement (message + bouton)</label>
+					<select name="rules_channel_id" id="rules_channel_id"
+						class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all">
+						<option value="">— Choisir un canal —</option>
+						{% for channel in channels %}
+						<option value="{{ channel.id }}" {% if configuration.getIntValue('rules_channel_id') == channel.id %}selected{% endif %}>{{ channel.name }}</option>
+						{% endfor %}
+					</select>
+				</div>
+				<div>
+					<label for="rules_embed_title" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Titre de l'embed</label>
+					<input name="rules_embed_title" id="rules_embed_title" type="text"
+						class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+						value="{{ configuration.getValue('rules_embed_title') or '' }}"
+						placeholder="Bienvenue"/>
+				</div>
+				<div>
+					<label for="rules_embed_body" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Texte du règlement (description de l'embed, markdown Discord)</label>
+					<textarea name="rules_embed_body" id="rules_embed_body" rows="8"
+						class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all resize-y"
+						placeholder="Lis le règlement puis clique sur le bouton ci-dessous…">{{ configuration.getValue('rules_embed_body') or '' }}</textarea>
+				</div>
+				<div>
+					<label for="rules_button_label" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Libellé du bouton</label>
+					<input name="rules_button_label" id="rules_button_label" type="text"
+						class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+						value="{{ configuration.getValue('rules_button_label') or '' }}"
+						placeholder="J'ai lu le règlement"/>
+				</div>
+				<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+					<div>
+						<label for="rules_arrival_role_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Rôle d'arrivée (au clic sur le bouton)</label>
+						<select name="rules_arrival_role_id" id="rules_arrival_role_id"
+							class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all">
+							<option value="">— Aucun —</option>
+							{% for guild_data in roles %}
+							<optgroup label="{{ guild_data.guild_name }}">
+								{% for role in guild_data.roles %}
+								<option value="{{ role.id }}" {% if configuration.getIntValue('rules_arrival_role_id') == role.id %}selected{% endif %}>{{ role.name }}</option>
+								{% endfor %}
+							</optgroup>
+							{% endfor %}
+						</select>
+					</div>
+					<div>
+						<label for="rules_validated_role_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Rôle membre validé (accès au reste du serveur)</label>
+						<select name="rules_validated_role_id" id="rules_validated_role_id"
+							class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all">
+							<option value="">— Aucun —</option>
+							{% for guild_data in roles %}
+							<optgroup label="{{ guild_data.guild_name }}">
+								{% for role in guild_data.roles %}
+								<option value="{{ role.id }}" {% if configuration.getIntValue('rules_validated_role_id') == role.id %}selected{% endif %}>{{ role.name }}</option>
+								{% endfor %}
+							</optgroup>
+							{% endfor %}
+						</select>
+					</div>
+				</div>
+				<div>
+					<label for="rules_presentation_channel_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Canal présentation (optionnel)</label>
+					<select name="rules_presentation_channel_id" id="rules_presentation_channel_id"
+						class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all">
+						<option value="">— Désactivé —</option>
+						{% for channel in channels %}
+						<option value="{{ channel.id }}" {% if configuration.getIntValue('rules_presentation_channel_id') == channel.id %}selected{% endif %}>{{ channel.name }}</option>
+						{% endfor %}
+					</select>
+					<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Si renseigné : premier message du membre (qui a le rôle d'arrivée) dans ce canal → ajout du rôle validé et retrait du rôle d'arrivée.</p>
+				</div>
+			</div>
+
+			<div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 space-y-4">
 				<h3 class="font-medium text-gray-800 dark:text-gray-200">Messages de départ</h3>
 				
 				<label class="flex items-center gap-2 cursor-pointer">
@@ -210,6 +294,14 @@
 			<button type="submit" 
 				class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-colors focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800">
 				Enregistrer la configuration Discord
+			</button>
+		</form>
+
+		<form action="{{ url_for('publishRulesMessage') }}" method="POST" class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+			<p class="text-sm text-gray-600 dark:text-gray-400 mb-3">Envoie ou remplace le message du règlement sur Discord (utilise la config <strong>enregistrée</strong> ci-dessus).</p>
+			<button type="submit"
+				class="px-6 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-medium rounded-lg transition-colors focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800">
+				Publier le message règlement sur Discord
 			</button>
 		</form>
 	</div>

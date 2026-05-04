@@ -33,6 +33,7 @@ from discordbot.moderation import (
 	moderation_slash_say,
 )
 from discordbot.welcome import sendWelcomeMessage, sendLeaveMessage, updateInviteCache
+from discordbot.rules_ack import register_persistent_rules_view, on_presentation_message
 from discordbot.patreon import checkPatreonPosts
 from discordbot.youtube import checkYouTubeVideos
 from discordbot.auto_rooms import on_voice_state_update_auto_rooms, on_raw_reaction_add_auto_rooms, on_message_auto_rooms, cleanup_orphaned_auto_rooms
@@ -62,6 +63,8 @@ class DiscordBot(discord.Client):
 		):
 			self.tree.add_command(cmd)
 		logging.info("Commandes d'application (transfert, modération, ProtonDB) ajoutées au CommandTree")
+		register_persistent_rules_view(self)
+		logging.info("Vue persistante règlement (bouton) enregistrée")
 	
 	async def on_ready(self):
 		logging.info(f'Connecté en tant que {self.user} (ID: {self.user.id})')
@@ -187,6 +190,7 @@ async def on_message(message: Message):
 	if message.author == bot.user:
 		return
 	
+	await on_presentation_message(bot, message)
 	# Gestion des messages dans les auto rooms (avant le check des commandes !)
 	await on_message_auto_rooms(bot, message)
 	

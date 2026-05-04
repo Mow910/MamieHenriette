@@ -1,9 +1,34 @@
-from flask import render_template, request, redirect, url_for
+import asyncio
+import logging
+
+from flask import render_template, request, redirect, url_for, flash
 from webapp import webapp
 from webapp.auth import require_page
 from database import db
 from database.helpers import ConfigurationHelper
 from discordbot import bot
+
+RULES_FORM_KEYS = frozenset({
+	'rules_channel_id',
+	'rules_arrival_role_id',
+	'rules_validated_role_id',
+	'rules_presentation_channel_id',
+	'rules_embed_title',
+	'rules_embed_body',
+	'rules_button_label',
+})
+
+SKIP_FORM_KEYS = frozenset({
+	'moderation_staff_role_ids',
+	'rules_ack_section_in_form',
+	'moderation_roles_in_form',
+})
+
+
+def _form_int_str(raw: str | None) -> str:
+	s = (raw or '').strip()
+	return s if s.isdigit() else '0'
+
 
 @webapp.route("/configurations")
 @require_page("configurations")
@@ -23,7 +48,8 @@ def updateConfiguration():
 		'welcome_enable': 'welcome_channel_id',
 		'leave_enable': 'leave_channel_id',
 		'auto_rooms_enable': 'auto_rooms_channel_id',
-		'twitch_commands_enable': 'twitch_channel'
+		'twitch_commands_enable': 'twitch_channel',
+		'rules_ack_enable': 'rules_channel_id',
 	}
 	
 	# Ne mettre à jour les rôles staff que si la liste a été rendue dans le formulaire.
@@ -35,8 +61,20 @@ def updateConfiguration():
 		else:
 			ConfigurationHelper().createOrUpdate('moderation_staff_role_ids', '')
 	
+	if request.form.get('rules_ack_section_in_form'):
+		ch = ConfigurationHelper()
+		ch.createOrUpdate('rules_channel_id', _form_int_str(request.form.get('rules_channel_id')))
+		ch.createOrUpdate('rules_arrival_role_id', _form_int_str(request.form.get('rules_arrival_role_id')))
+		ch.createOrUpdate('rules_validated_role_id', _form_int_str(request.form.get('rules_validated_role_id')))
+		ch.createOrUpdate('rules_presentation_channel_id', _form_int_str(request.form.get('rules_presentation_channel_id')))
+		ch.createOrUpdate('rules_embed_title', (request.form.get('rules_embed_title') or '').strip())
+		ch.createOrUpdate('rules_embed_body', request.form.get('rules_embed_body') or '')
+		ch.createOrUpdate('rules_button_label', (request.form.get('rules_button_label') or '').strip())
+	
 	for key in request.form:
-		if key == 'moderation_staff_role_ids':
+		if key in SKIP_FORM_KEYS:
+			continue
+		if request.form.get('rules_ack_section_in_form') and key in RULES_FORM_KEYS:
 			continue
 		value = request.form.get(key)
 		if value and value.strip():
@@ -49,3 +87,18 @@ def updateConfiguration():
 	db.session.commit()
 	return redirect(request.referrer)
 
+
+@webapp.route("/configurations/publish-rules", methods=['POST'])
+@require_page("configurations")
+def publishRulesMessage():
+	from discordbot.rules_ack import publish_rules_embed_sync
+
+	if not bot.loop or bot.loop.is_closed():
+		flash("Le bot Discord n'est pas connecté.", "error")
+		return redirect(url_for("openConfigurations"))
+
+	ok, msg = publish_rules_embed_sync(bot)
+	flash(msg, "success" if ok else "error")
+	if not ok:
+		logging.warning("publishRulesMessage: %s", msg)
+	return redirect(url_for("openConfigurations"))
