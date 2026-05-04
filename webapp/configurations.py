@@ -50,6 +50,7 @@ def updateConfiguration():
 		'auto_rooms_enable': 'auto_rooms_channel_id',
 		'twitch_commands_enable': 'twitch_channel',
 		'rules_ack_enable': 'rules_channel_id',
+		'rules_arrival_on_join_enable': 'rules_ack_section_in_form',
 	}
 	
 	# Ne mettre à jour les rôles staff que si la liste a été rendue dans le formulaire.

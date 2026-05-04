@@ -174,6 +174,46 @@ def publish_rules_embed_sync(bot: discord.Client) -> tuple[bool, str]:
 		return False, str(e)
 
 
+async def assign_rules_arrival_on_join(bot: discord.Client, member: discord.Member) -> None:
+	"""Si activé dans la config, attribue le rôle d'arrivée dès le join (sans attendre le bouton)."""
+	with webapp.app_context():
+		config = ConfigurationHelper()
+		if not config.getValue("rules_ack_enable"):
+			return
+		if not config.getValue("rules_arrival_on_join_enable"):
+			return
+		arrival_id = config.getIntValue("rules_arrival_role_id")
+		validated_id = config.getIntValue("rules_validated_role_id")
+
+	if not arrival_id:
+		return
+
+	guild = member.guild
+	arrival_role = guild.get_role(arrival_id)
+	if not arrival_role:
+		logging.warning("assign_rules_arrival_on_join: rôle d'arrivée %s introuvable sur %s", arrival_id, guild.id)
+		return
+
+	if validated_id:
+		validated_role = guild.get_role(validated_id)
+		if validated_role and validated_role in member.roles:
+			return
+
+	if arrival_role in member.roles:
+		return
+
+	try:
+		await member.add_roles(arrival_role, reason="Règlement : rôle d'arrivée à la connexion")
+	except discord.Forbidden:
+		logging.warning(
+			"assign_rules_arrival_on_join: permission refusée pour %s sur %s (hiérarchie des rôles ?)",
+			member.id,
+			guild.id,
+		)
+	except discord.HTTPException as e:
+		logging.warning("assign_rules_arrival_on_join: %s", e)
+
+
 async def on_presentation_message(bot: discord.Client, message: discord.Message) -> None:
 	if message.author.bot:
 		return
