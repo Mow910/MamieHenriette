@@ -125,31 +125,46 @@ async def _checkChannelVideos(notification: YouTubeNotification, is_first_check:
 		for vid, vdata in videos:
 			_save_video_history(notification.id, vid, vdata, notified=False)
 		
-		if videos:
-			latest_video_id, latest_video = videos[0]
-			
-			if is_first_check:
-				if not notification.last_video_id or notification.last_video_id != latest_video_id:
-					logger.info(f"YouTube: synchronisation initiale pour {channel_id}, dernière vidéo: {latest_video_id}")
-					notification.last_video_id = latest_video_id
-					db.session.commit()
+		if not videos:
+			return
+
+		latest_video_id, _ = videos[0]
+		if is_first_check or not notification.last_video_id:
+			# Au démarrage, on initialise le curseur sans annoncer l'historique.
+			notification.last_video_id = latest_video_id
+			db.session.commit()
+			logger.info(f"YouTube: synchronisation initiale pour {channel_id}, dernière vidéo: {latest_video_id}")
+			return
+
+		# Le flux est trié du plus récent au plus ancien. On envoie donc toutes les
+		# vidéos postérieures au curseur, dans l'ordre de publication.
+		last_video_index = next(
+			(index for index, (video_id, _) in enumerate(videos) if video_id == notification.last_video_id),
+			None,
+		)
+		if last_video_index is None:
+			# Le curseur n'est plus dans le flux (ou le filtre vidéo a changé) :
+			# ne pas rejouer tout l'historique, mais notifier la dernière vidéo.
+			pending_videos = [videos[0]]
+			logger.warning(
+				f"YouTube: curseur {notification.last_video_id} absent du flux pour {channel_id}; "
+				f"notification de la dernière vidéo uniquement"
+			)
+		else:
+			pending_videos = list(reversed(videos[:last_video_index]))
+
+		embed_config = _extract_embed_config(notification)
+		for video_id, video_data in pending_videos:
+			logger.info(f"Nouvelle vidéo détectée: {video_id} pour la chaîne {channel_id}")
+			success = await _notifyVideo(embed_config, video_data, video_id)
+			if not success:
+				# Ne pas avancer le curseur : la vidéo sera réessayée au prochain cycle.
+				logger.warning(f"Notification échouée pour {video_id}; nouvel essai au prochain contrôle")
 				return
-			
-			if not notification.last_video_id:
-				notification.last_video_id = latest_video_id
-				db.session.commit()
-				return
-			
-			if latest_video_id != notification.last_video_id:
-				logger.info(f"Nouvelle vidéo détectée: {latest_video_id} pour la chaîne {notification.channel_id}")
-				embed_config = _extract_embed_config(notification)
-				success = await _notifyVideo(embed_config, latest_video, latest_video_id)
-				if success:
-					_save_video_history(notification.id, latest_video_id, latest_video, notified=True)
-				else:
-					logger.warning(f"Notification échouée pour {latest_video_id}, vidéo enregistrée comme non notifiée")
-				notification.last_video_id = latest_video_id
-				db.session.commit()
+
+			_save_video_history(notification.id, video_id, video_data, notified=True)
+			notification.last_video_id = video_id
+			db.session.commit()
 				
 	except Exception as e:
 		logger.error(f"Erreur lors de la vérification des vidéos: {e}")
@@ -242,9 +257,13 @@ async def _sendMessage(embed_config: dict, message: str, video_url: str, thumbna
 	"""Envoie le message Discord. Retourne True si l'envoi a réussi."""
 	from discordbot import bot
 	try:
-		discord_channel = bot.get_channel(embed_config['notify_channel'])
+		channel_id = int(embed_config['notify_channel'])
+		discord_channel = bot.get_channel(channel_id)
 		if not discord_channel:
-			logger.error(f"Canal Discord {embed_config['notify_channel']} introuvable")
+			# Le salon peut ne pas être présent dans le cache local après une reconnexion.
+			discord_channel = await bot.fetch_channel(channel_id)
+		if not discord_channel:
+			logger.error(f"Canal Discord {channel_id} introuvable")
 			return False
 		
 		embed_title_text = _format_embed_text(embed_config['embed_title'], channel_name, video_title, video_url, video_id, thumbnail, published_at, is_short) if embed_config['embed_title'] else video_title

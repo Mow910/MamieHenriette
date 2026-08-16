@@ -44,6 +44,7 @@ class DiscordBot(discord.Client):
 		super().__init__(intents=intents)
 		self.tree = app_commands.CommandTree(self)
 		self.synced = False
+		self.background_tasks_started = False
 	
 	async def setup_hook(self):
 		for cmd in (
@@ -98,11 +99,15 @@ class DiscordBot(discord.Client):
 		
 		await cleanup_orphaned_auto_rooms(self)
 		
-		self.loop.create_task(self.updateStatus())
-		self.loop.create_task(self.updateHumbleBundle())
-		self.loop.create_task(self.updateYouTube())
-		self.loop.create_task(self.updateFreeLoot())
-		self.loop.create_task(self.updatePatreon())
+		# on_ready est rappelé après une reconnexion : ne pas démarrer plusieurs
+		# boucles de surveillance, qui peuvent envoyer des notifications en double.
+		if not self.background_tasks_started:
+			self.background_tasks_started = True
+			self.loop.create_task(self.updateStatus())
+			self.loop.create_task(self.updateHumbleBundle())
+			self.loop.create_task(self.updateYouTube())
+			self.loop.create_task(self.updateFreeLoot())
+			self.loop.create_task(self.updatePatreon())
 
 	async def on_disconnect(self):
 		webapp.config["BOT_STATUS"]["discord_connected"] = False
@@ -267,4 +272,3 @@ async def on_invite_create(invite):
 @bot.event
 async def on_invite_delete(invite):
 	await updateInviteCache(invite.guild)
-
