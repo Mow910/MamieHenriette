@@ -127,7 +127,33 @@ def _room_key(guild_id: int, owner_id: int) -> tuple[int, int]:
 
 
 def _get_room(guild_id: int, owner_id: int) -> Optional[dict]:
-	return _rooms.get(_room_key(guild_id, owner_id))
+	room = _rooms.get(_room_key(guild_id, owner_id))
+	if room:
+		return room
+
+	# Le cache peut être perdu après un redémarrage ou une reconnexion : la base
+	# reste la source de vérité pour éviter de créer une deuxième room au même membre.
+	with webapp.app_context():
+		record = AutoRoom.query.filter_by(guild_id=str(guild_id), owner_id=str(owner_id)).first()
+	if not record:
+		return None
+	try:
+		room = {
+			"guild_id": guild_id,
+			"voice_channel_id": int(record.voice_channel_id),
+			"control_message_id": int(record.control_message_id) if record.control_message_id else None,
+			"owner_id": owner_id,
+			"whitelist": set(json.loads(record.whitelist or "[]")),
+			"blacklist": set(json.loads(record.blacklist or "[]")),
+			"managed_member_ids": set(json.loads(record.managed_member_ids or "[]")),
+			"access_mode": record.access_mode or "open",
+		}
+	except (TypeError, ValueError):
+		return None
+	_rooms[_room_key(guild_id, owner_id)] = room
+	if room["control_message_id"]:
+		_control_message_ids[room["control_message_id"]] = (guild_id, owner_id)
+	return room
 
 
 def _set_room(guild_id: int, owner_id: int, data: dict):
@@ -176,6 +202,12 @@ def _find_room_by_channel(guild_id: int, channel_id: int) -> Optional[tuple[int,
 	for (gid, oid), data in _rooms.items():
 		if gid == guild_id and data.get("voice_channel_id") == channel_id:
 			return (oid, data)
+	with webapp.app_context():
+		record = AutoRoom.query.filter_by(guild_id=str(guild_id), voice_channel_id=str(channel_id)).first()
+	if record:
+		room = _get_room(guild_id, int(record.owner_id))
+		if room:
+			return (int(record.owner_id), room)
 	return None
 
 
