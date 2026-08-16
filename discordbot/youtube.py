@@ -136,35 +136,22 @@ async def _checkChannelVideos(notification: YouTubeNotification, is_first_check:
 			logger.info(f"YouTube: synchronisation initiale pour {channel_id}, dernière vidéo: {latest_video_id}")
 			return
 
-		# Le flux est trié du plus récent au plus ancien. On envoie donc toutes les
-		# vidéos postérieures au curseur, dans l'ordre de publication.
-		last_video_index = next(
-			(index for index, (video_id, _) in enumerate(videos) if video_id == notification.last_video_id),
-			None,
-		)
-		if last_video_index is None:
-			# Le curseur n'est plus dans le flux (ou le filtre vidéo a changé) :
-			# ne pas rejouer tout l'historique, mais notifier la dernière vidéo.
-			pending_videos = [videos[0]]
-			logger.warning(
-				f"YouTube: curseur {notification.last_video_id} absent du flux pour {channel_id}; "
-				f"notification de la dernière vidéo uniquement"
-			)
-		else:
-			pending_videos = list(reversed(videos[:last_video_index]))
+		if latest_video_id == notification.last_video_id:
+			return
 
+		# Une chaîne peut publier plusieurs vidéos entre deux contrôles : le choix
+		# fonctionnel est d'annoncer uniquement la plus récente, jamais l'historique.
+		logger.info(f"Nouvelle vidéo détectée: {latest_video_id} pour la chaîne {channel_id}")
 		embed_config = _extract_embed_config(notification)
-		for video_id, video_data in pending_videos:
-			logger.info(f"Nouvelle vidéo détectée: {video_id} pour la chaîne {channel_id}")
-			success = await _notifyVideo(embed_config, video_data, video_id)
-			if not success:
-				# Ne pas avancer le curseur : la vidéo sera réessayée au prochain cycle.
-				logger.warning(f"Notification échouée pour {video_id}; nouvel essai au prochain contrôle")
-				return
+		success = await _notifyVideo(embed_config, videos[0][1], latest_video_id)
+		if not success:
+			# Ne pas avancer le curseur : cette dernière vidéo sera réessayée au prochain cycle.
+			logger.warning(f"Notification échouée pour {latest_video_id}; nouvel essai au prochain contrôle")
+			return
 
-			_save_video_history(notification.id, video_id, video_data, notified=True)
-			notification.last_video_id = video_id
-			db.session.commit()
+		_save_video_history(notification.id, latest_video_id, videos[0][1], notified=True)
+		notification.last_video_id = latest_video_id
+		db.session.commit()
 				
 	except Exception as e:
 		logger.error(f"Erreur lors de la vérification des vidéos: {e}")
