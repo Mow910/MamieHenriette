@@ -193,6 +193,18 @@ CREATE TABLE IF NOT EXISTS `youtube_video_history` (
 	FOREIGN KEY (`notification_id`) REFERENCES `youtube_notification`(`id`) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS `auto_room` (
+	`guild_id` VARCHAR(32) NOT NULL,
+	`voice_channel_id` VARCHAR(32) NOT NULL UNIQUE,
+	`owner_id` VARCHAR(32) NOT NULL,
+	`control_message_id` VARCHAR(32),
+	`access_mode` VARCHAR(16) NOT NULL DEFAULT 'open',
+	`whitelist` TEXT NOT NULL DEFAULT '[]',
+	`blacklist` TEXT NOT NULL DEFAULT '[]',
+	`managed_member_ids` TEXT NOT NULL DEFAULT '[]',
+	PRIMARY KEY (`guild_id`, `voice_channel_id`)
+);
+
 CREATE TABLE IF NOT EXISTS `freeloot_entry` (
 	entry_id VARCHAR(256) PRIMARY KEY
 );

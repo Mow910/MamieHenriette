@@ -36,7 +36,7 @@ from discordbot.welcome import sendWelcomeMessage, sendLeaveMessage, updateInvit
 from discordbot.rules_ack import assign_rules_arrival_on_join, register_persistent_rules_view
 from discordbot.patreon import checkPatreonPosts
 from discordbot.youtube import checkYouTubeVideos
-from discordbot.auto_rooms import on_voice_state_update_auto_rooms, on_raw_reaction_add_auto_rooms, on_message_auto_rooms, cleanup_orphaned_auto_rooms
+from discordbot.auto_rooms import on_voice_state_update_auto_rooms, on_raw_reaction_add_auto_rooms, on_message_auto_rooms, cleanup_orphaned_auto_rooms, restore_auto_rooms
 from discordbot.protondb_discord import protondb_slash_command, pdb_slash_command
 
 class DiscordBot(discord.Client):
@@ -97,6 +97,7 @@ class DiscordBot(discord.Client):
 		for guild in self.guilds:
 			await updateInviteCache(guild)
 		
+		await restore_auto_rooms(self)
 		await cleanup_orphaned_auto_rooms(self)
 		
 		# on_ready est rappelé après une reconnexion : ne pas démarrer plusieurs

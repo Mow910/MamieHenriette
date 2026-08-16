@@ -1,11 +1,15 @@
 # discordbot/auto_rooms.py — Auto rooms : message et réactions dans la partie texte du salon vocal (onglet Discussion)
 import logging
 import re
+import json
 from typing import Optional
 
 import discord
 from discord import Member, VoiceState
+from database import db
 from database.helpers import ConfigurationHelper
+from database.models import AutoRoom
+from webapp import webapp
 
 # (guild_id, owner_id) -> room_data (voice_channel_id, control_message_id, whitelist, blacklist, access_mode)
 _rooms: dict[tuple[int, int], dict] = {}
@@ -131,12 +135,41 @@ def _set_room(guild_id: int, owner_id: int, data: dict):
 	mid = data.get("control_message_id")
 	if mid:
 		_control_message_ids[mid] = (guild_id, owner_id)
+	_persist_room(guild_id, owner_id, data)
 
 
 def _del_room(guild_id: int, owner_id: int):
 	data = _rooms.pop(_room_key(guild_id, owner_id), None)
 	if data and data.get("control_message_id"):
 		_control_message_ids.pop(data["control_message_id"], None)
+	if data:
+		with webapp.app_context():
+			AutoRoom.query.filter_by(guild_id=str(guild_id), voice_channel_id=str(data["voice_channel_id"])).delete()
+			db.session.commit()
+
+
+def _persist_room(guild_id: int, owner_id: int, data: dict):
+	"""Sauvegarde l'état nécessaire à la reprise après redémarrage."""
+	with webapp.app_context():
+		record = AutoRoom.query.filter_by(
+			guild_id=str(guild_id), voice_channel_id=str(data["voice_channel_id"])
+		).first()
+		if not record:
+			record = AutoRoom(guild_id=str(guild_id), voice_channel_id=str(data["voice_channel_id"]))
+			db.session.add(record)
+		record.owner_id = str(owner_id)
+		record.control_message_id = str(data["control_message_id"]) if data.get("control_message_id") else None
+		record.access_mode = data.get("access_mode", "open")
+		record.whitelist = json.dumps(sorted(data.get("whitelist", set())))
+		record.blacklist = json.dumps(sorted(data.get("blacklist", set())))
+		record.managed_member_ids = json.dumps(sorted(data.get("managed_member_ids", set())))
+		db.session.commit()
+
+
+def _auto_rooms_config() -> tuple[bool, int]:
+	with webapp.app_context():
+		config = ConfigurationHelper()
+		return bool(config.getValue("auto_rooms_enable")), config.getIntValue("auto_rooms_channel_id")
 
 
 def _find_room_by_channel(guild_id: int, channel_id: int) -> Optional[tuple[int, dict]]:
@@ -158,7 +191,7 @@ def _find_room_by_message(message_id: int) -> Optional[tuple[int, int, dict]]:
 	return (guild_id, owner_id, data)
 
 
-async def _apply_access_mode(channel: discord.VoiceChannel, mode: str, whitelist: set, blacklist: set):
+async def _apply_access_mode(channel: discord.VoiceChannel, mode: str, whitelist: set, blacklist: set, room: dict):
 	guild = channel.guild
 	everyone = guild.default_role
 	overwrites = dict(channel.overwrites)  # Récupérer les overwrites existants
@@ -175,10 +208,11 @@ async def _apply_access_mode(channel: discord.VoiceChannel, mode: str, whitelist
 	if mode == "open":
 		everyone_ow.connect = True
 		everyone_ow.view_channel = True
-		# Retirer les overwrites des membres qui ne sont plus dans la blacklist
+		# Ne toucher qu'aux overwrites créés par l'auto room, jamais aux droits
+		# ajoutés manuellement par la modération.
 		for target in list(overwrites.keys()):
 			if target != everyone and isinstance(target, discord.Member):
-				if target.id not in blacklist:
+				if target.id in room.get("managed_member_ids", set()) and target.id not in blacklist:
 					overwrites.pop(target, None)
 		# Ajouter les overwrites pour la blacklist
 		for uid in blacklist:
@@ -188,10 +222,9 @@ async def _apply_access_mode(channel: discord.VoiceChannel, mode: str, whitelist
 	elif mode == "closed":
 		everyone_ow.connect = False
 		everyone_ow.view_channel = True
-		# Retirer les overwrites des membres qui ne sont plus dans la whitelist
 		for target in list(overwrites.keys()):
 			if target != everyone and isinstance(target, discord.Member):
-				if target.id not in whitelist:
+				if target.id in room.get("managed_member_ids", set()) and target.id not in whitelist:
 					overwrites.pop(target, None)
 		# Ajouter les overwrites pour la whitelist
 		for uid in whitelist:
@@ -201,10 +234,9 @@ async def _apply_access_mode(channel: discord.VoiceChannel, mode: str, whitelist
 	elif mode == "private":
 		everyone_ow.connect = False
 		everyone_ow.view_channel = False
-		# Retirer les overwrites des membres qui ne sont plus dans la whitelist
 		for target in list(overwrites.keys()):
 			if target != everyone and isinstance(target, discord.Member):
-				if target.id not in whitelist:
+				if target.id in room.get("managed_member_ids", set()) and target.id not in whitelist:
 					overwrites.pop(target, None)
 		# Ajouter les overwrites pour la whitelist
 		for uid in whitelist:
@@ -214,6 +246,7 @@ async def _apply_access_mode(channel: discord.VoiceChannel, mode: str, whitelist
 	
 	overwrites[everyone] = everyone_ow
 	await channel.edit(overwrites=overwrites)
+	room["managed_member_ids"] = set(blacklist if mode == "open" else whitelist)
 
 
 async def _handle_reaction_action(bot: discord.Client, guild_id: int, owner_id: int, action: str, channel):
@@ -229,7 +262,8 @@ async def _handle_reaction_action(bot: discord.Client, guild_id: int, owner_id: 
 
 	if action in ("open", "closed", "private"):
 		room["access_mode"] = action
-		await _apply_access_mode(voice_channel, action, room.get("whitelist", set()), room.get("blacklist", set()))
+		await _apply_access_mode(voice_channel, action, room.get("whitelist", set()), room.get("blacklist", set()), room)
+		_persist_room(guild_id, owner_id, room)
 		# Mettre à jour le cadenas dans le nom du channel
 		try:
 			base_name = voice_channel.name.rstrip(" 🔓🔒🔐")
@@ -361,14 +395,24 @@ _AUTO_ROOM_NAME_PATTERN = re.compile(r"^Salon de .+ [🔓🔒🔐]$")
 
 async def cleanup_orphaned_auto_rooms(bot: discord.Client):
 	"""Supprime les auto rooms orphelines (vides) au démarrage du bot."""
-	config = ConfigurationHelper()
-	if not config.getValue("auto_rooms_enable"):
+	enabled, trigger_channel_id = _auto_rooms_config()
+	if not enabled:
 		return
-	trigger_channel_id = config.getIntValue("auto_rooms_channel_id")
 	if not trigger_channel_id:
 		return
 
 	deleted = 0
+	# Les rooms persistées sont connues même si leur nom a été modifié manuellement.
+	for (guild_id, owner_id), room in list(_rooms.items()):
+		channel = bot.get_channel(room["voice_channel_id"])
+		if isinstance(channel, discord.VoiceChannel) and not channel.members:
+			try:
+				await channel.delete(reason="Nettoyage auto room vide au démarrage")
+				_del_room(guild_id, owner_id)
+				deleted += 1
+			except discord.HTTPException:
+				pass
+
 	for guild in bot.guilds:
 		trigger_channel = guild.get_channel(trigger_channel_id)
 		if not trigger_channel or not trigger_channel.category:
@@ -382,6 +426,9 @@ async def cleanup_orphaned_auto_rooms(bot: discord.Client):
 			if len(channel.members) == 0:
 				try:
 					await channel.delete(reason="Nettoyage auto room orpheline au démarrage")
+					result = _find_room_by_channel(guild.id, channel.id)
+					if result:
+						_del_room(guild.id, result[0])
 					deleted += 1
 				except discord.HTTPException:
 					pass
@@ -389,11 +436,40 @@ async def cleanup_orphaned_auto_rooms(bot: discord.Client):
 		logging.info(f"Nettoyage auto rooms : {deleted} salon(s) orphelin(s) supprimé(s)")
 
 
+async def restore_auto_rooms(bot: discord.Client):
+	"""Recharge les salons encore existants après un redémarrage du bot."""
+	with webapp.app_context():
+		records = AutoRoom.query.all()
+	for record in records:
+		guild = bot.get_guild(int(record.guild_id))
+		channel = guild.get_channel(int(record.voice_channel_id)) if guild else None
+		if not isinstance(channel, discord.VoiceChannel):
+			with webapp.app_context():
+				db.session.delete(db.session.merge(record))
+				db.session.commit()
+			continue
+		try:
+			whitelist = set(json.loads(record.whitelist or "[]"))
+			blacklist = set(json.loads(record.blacklist or "[]"))
+			managed_member_ids = set(json.loads(record.managed_member_ids or "[]"))
+		except (TypeError, ValueError):
+			whitelist, blacklist, managed_member_ids = set(), set(), set()
+		_set_room(int(record.guild_id), int(record.owner_id), {
+			"guild_id": int(record.guild_id),
+			"voice_channel_id": int(record.voice_channel_id),
+			"control_message_id": int(record.control_message_id) if record.control_message_id else None,
+			"owner_id": int(record.owner_id),
+			"whitelist": whitelist,
+			"blacklist": blacklist,
+			"managed_member_ids": managed_member_ids,
+			"access_mode": record.access_mode or "open",
+		})
+
+
 async def on_voice_state_update_auto_rooms(bot: discord.Client, member: Member, before: VoiceState, after: VoiceState):
-	config = ConfigurationHelper()
-	if not config.getValue("auto_rooms_enable"):
+	enabled, trigger_channel_id = _auto_rooms_config()
+	if not enabled:
 		return
-	trigger_channel_id = config.getIntValue("auto_rooms_channel_id")
 	if not trigger_channel_id:
 		return
 
@@ -403,13 +479,11 @@ async def on_voice_state_update_auto_rooms(bot: discord.Client, member: Member, 
 		existing_room = _get_room(guild.id, member.id)
 		if existing_room:
 			old_channel = bot.get_channel(existing_room["voice_channel_id"])
-			_del_room(guild.id, member.id)
 			if old_channel and isinstance(old_channel, discord.VoiceChannel):
-				if len(old_channel.members) == 0:
-					try:
-						await old_channel.delete(reason="Auto room remplacée")
-					except discord.HTTPException:
-						pass
+				# Ne jamais abandonner une room encore occupée : le propriétaire y retourne.
+				await member.move_to(old_channel)
+				return
+			_del_room(guild.id, member.id)
 
 		category = after.channel.category
 		channel_name = f"Salon de {member.display_name} {_status_emoji('open')}"
@@ -429,10 +503,15 @@ async def on_voice_state_update_auto_rooms(bot: discord.Client, member: Member, 
 				"owner_id": member.id,
 				"whitelist": set(),
 				"blacklist": set(),
+				"managed_member_ids": set(),
 				"access_mode": "open",
 			}
 			
 			control_message_id = await send_control_panel(bot, guild.id, member, new_channel, room_data)
+			if not control_message_id:
+				await new_channel.delete(reason="Panneau Auto Room impossible à créer")
+				await member.move_to(after.channel)
+				return
 			room_data["control_message_id"] = control_message_id
 			_set_room(guild.id, member.id, room_data)
 			
@@ -445,12 +524,13 @@ async def on_voice_state_update_auto_rooms(bot: discord.Client, member: Member, 
 		if result:
 			owner_id, room = result
 			remaining = [m for m in before.channel.members if m.id != member.id]
-			if member.id == owner_id:
+			if member.id == owner_id and remaining:
+				new_owner = remaining[0]
 				_del_room(guild.id, owner_id)
-				try:
-					await before.channel.delete(reason="Propriétaire parti (auto room)")
-				except discord.HTTPException:
-					pass
+				room["owner_id"] = new_owner.id
+				_set_room(guild.id, new_owner.id, room)
+				await before.channel.send(f"👑 {new_owner.mention} est maintenant propriétaire du salon.")
+				await _update_control_panel(bot, guild.id, new_owner.id, before.channel)
 			elif len(remaining) == 0:
 				_del_room(guild.id, owner_id)
 				try:
@@ -463,7 +543,8 @@ async def on_message_auto_rooms(bot: discord.Client, message: discord.Message):
 	"""Gère les messages dans les salons vocaux pour les actions (statut, liste blanche/noire, etc.)."""
 	if message.author.bot:
 		return
-	if not ConfigurationHelper().getValue("auto_rooms_enable"):
+	enabled, _ = _auto_rooms_config()
+	if not enabled:
 		return
 	
 	# Vérifier si c'est dans un salon vocal (partie texte)
@@ -515,7 +596,11 @@ async def on_message_auto_rooms(bot: discord.Client, message: discord.Message):
 				whitelist.add(target.id)
 				await message.channel.send(f"✅ {target.mention} a été ajouté à la liste blanche.")
 			room["whitelist"] = whitelist
-			await _apply_access_mode(voice_channel, room.get("access_mode", "open"), whitelist, room.get("blacklist", set()))
+			blacklist = room.get("blacklist", set())
+			blacklist.discard(target.id)
+			room["blacklist"] = blacklist
+			await _apply_access_mode(voice_channel, room.get("access_mode", "open"), whitelist, blacklist, room)
+			_persist_room(message.guild.id, owner_id, room)
 			await _update_control_panel(bot, message.guild.id, owner_id, message.channel)
 		return
 	
@@ -532,7 +617,11 @@ async def on_message_auto_rooms(bot: discord.Client, message: discord.Message):
 				blacklist.add(target.id)
 				await message.channel.send(f"✅ {target.mention} a été ajouté à la liste noire.")
 			room["blacklist"] = blacklist
-			await _apply_access_mode(voice_channel, room.get("access_mode", "open"), room.get("whitelist", set()), blacklist)
+			whitelist = room.get("whitelist", set())
+			whitelist.discard(target.id)
+			room["whitelist"] = whitelist
+			await _apply_access_mode(voice_channel, room.get("access_mode", "open"), whitelist, blacklist, room)
+			_persist_room(message.guild.id, owner_id, room)
 			await _update_control_panel(bot, message.guild.id, owner_id, message.channel)
 		return
 	
@@ -568,7 +657,8 @@ async def on_raw_reaction_add_auto_rooms(bot: discord.Client, payload: discord.R
 	"""Seul le propriétaire peut réagir ; on retire la réaction des autres."""
 	if payload.user_id == bot.user.id:
 		return
-	if not ConfigurationHelper().getValue("auto_rooms_enable"):
+	enabled, _ = _auto_rooms_config()
+	if not enabled:
 		return
 	room_info = _find_room_by_message(payload.message_id)
 	if not room_info:

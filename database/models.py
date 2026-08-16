@@ -210,6 +210,19 @@ class YouTubeVideoHistory(db.Model):
 	detected_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class AutoRoom(db.Model):
+	"""État persistant des salons vocaux temporaires."""
+	__tablename__ = 'auto_room'
+	guild_id = db.Column(db.String(32), primary_key=True)
+	voice_channel_id = db.Column(db.String(32), primary_key=True)
+	owner_id = db.Column(db.String(32), nullable=False)
+	control_message_id = db.Column(db.String(32))
+	access_mode = db.Column(db.String(16), nullable=False, default='open')
+	whitelist = db.Column(db.Text, nullable=False, default='[]')
+	blacklist = db.Column(db.Text, nullable=False, default='[]')
+	managed_member_ids = db.Column(db.Text, nullable=False, default='[]')
+
+
 class FreeLootEntry(db.Model):
 	__tablename__ = 'freeloot_entry'
 	entry_id = db.Column(db.String(256), primary_key=True)
@@ -259,4 +272,3 @@ class ModShoutboxMessage(db.Model):
 	author = db.Column(db.String(64), nullable=False)
 	message = db.Column(db.String(500), nullable=False)
 	created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-
