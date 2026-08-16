@@ -87,6 +87,16 @@ async def handle_rules_accept(interaction: discord.Interaction) -> None:
 	presentation_ch = presentation_ch if isinstance(presentation_ch, TextChannel) else None
 	success_text = _rules_ack_button_success_text(validated_role, presentation_ch)
 
+	# Le retrait du rôle d'arrivée est la marque persistante de l'acceptation.
+	# Le rôle validé peut ensuite être remplacé par le système de présentation ;
+	# dans ce cas, un nouveau clic ne doit surtout pas rejouer l'attribution.
+	if arrival_role and arrival_role not in member.roles:
+		await interaction.response.send_message(
+			"Tu as déjà accepté le règlement. Tes rôles ne seront pas modifiés.",
+			ephemeral=True,
+		)
+		return
+
 	if validated_role in member.roles:
 		await interaction.response.send_message(success_text, ephemeral=True)
 		return
