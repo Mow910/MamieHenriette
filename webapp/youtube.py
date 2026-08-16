@@ -201,7 +201,22 @@ def delYouTube(id):
 def youtubeHistory():
 	page = request.args.get('page', 1, type=int)
 	per_page = 20
-	history_query = YouTubeVideoHistory.query.order_by(YouTubeVideoHistory.detected_at.desc())
+	history_filter = request.args.get('filter', 'all')
+	if history_filter not in {'all', 'video', 'short'}:
+		history_filter = 'all'
+
+	history_query = YouTubeVideoHistory.query
+	if history_filter == 'video':
+		history_query = history_query.filter(YouTubeVideoHistory.is_short.is_(False))
+	elif history_filter == 'short':
+		history_query = history_query.filter(YouTubeVideoHistory.is_short.is_(True))
+
+	# published_at provient du flux YouTube (format ISO 8601), ce qui permet de
+	# présenter les vidéos par date de publication, plutôt que par date de détection.
+	history_query = history_query.order_by(
+		YouTubeVideoHistory.published_at.desc(),
+		YouTubeVideoHistory.detected_at.desc(),
+	)
 	total = history_query.count()
 	history = history_query.offset((page - 1) * per_page).limit(per_page).all()
 	total_pages = (total + per_page - 1) // per_page
@@ -221,6 +236,7 @@ def youtubeHistory():
 		page=page,
 		total_pages=total_pages,
 		total=total,
+		history_filter=history_filter,
 		msg=msg,
 		msg_type=msg_type,
 	)

@@ -28,6 +28,18 @@
 		</p>
 		<p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ total }} vidéo{{ 's' if total > 1 else '' }} au total.</p>
 	</div>
+
+	<div class="flex flex-wrap gap-2 mb-6" aria-label="Filtrer l'historique des vidéos">
+		<a href="{{ url_for('youtubeHistory') }}" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors {{ 'bg-red-600 text-white' if history_filter == 'all' else 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300' }}">
+			Toutes
+		</a>
+		<a href="{{ url_for('youtubeHistory', filter='video') }}" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors {{ 'bg-red-600 text-white' if history_filter == 'video' else 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300' }}">
+			Vidéos
+		</a>
+		<a href="{{ url_for('youtubeHistory', filter='short') }}" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors {{ 'bg-red-600 text-white' if history_filter == 'short' else 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300' }}">
+			Shorts
+		</a>
+	</div>
 </div>
 
 {% if history %}
@@ -99,7 +111,7 @@
 {% if total_pages > 1 %}
 <div class="mt-8 flex items-center justify-center gap-2">
 	{% if page > 1 %}
-	<a href="{{ url_for('youtubeHistory', page=page-1) }}" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors text-sm">
+		<a href="{{ url_for('youtubeHistory', page=page-1, filter=history_filter) }}" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors text-sm">
 		Précédent
 	</a>
 	{% endif %}
@@ -107,7 +119,7 @@
 		Page {{ page }} / {{ total_pages }}
 	</span>
 	{% if page < total_pages %}
-	<a href="{{ url_for('youtubeHistory', page=page+1) }}" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors text-sm">
+		<a href="{{ url_for('youtubeHistory', page=page+1, filter=history_filter) }}" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors text-sm">
 		Suivant
 	</a>
 	{% endif %}
