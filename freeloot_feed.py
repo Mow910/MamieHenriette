@@ -6,6 +6,8 @@ from html import unescape
 import requests
 
 FEED_URL = "https://feed.eikowagenknecht.com/lootscraper.xml"
+STEAM_FEED_URL = "https://feed.eikowagenknecht.com/lootscraper_steam_game.xml"
+FEED_URLS = (FEED_URL, STEAM_FEED_URL)
 ATOM_NS = {"atom": "http://www.w3.org/2005/Atom"}
 
 SOURCES = [
@@ -16,6 +18,7 @@ SOURCES = [
     ("gog", "GOG", "🎮"),
     ("google_play", "Google Play", "🤖"),
     ("apple_app_store", "Apple App Store", "🍎"),
+    ("steam", "Steam", "🎮"),
 ]
 
 
@@ -37,6 +40,8 @@ def source_key_from_entry(title: str, link: str) -> str | None:
         return "google_play"
     if "APPLE APP STORE" in title_upper:
         return "apple_app_store"
+    if "STEAM" in title_upper or "store.steampowered.com" in link_lower:
+        return "steam"
     return None
 
 
@@ -51,6 +56,7 @@ def game_name_from_title(title: str) -> str:
         "GOG (Game, Always Free) - ",
         "Google Play (Game) - ",
         "Apple App Store (Game) - ",
+        "Steam (Game, PC) - ",
     ):
         if title.startswith(prefix):
             return unescape(title[len(prefix) :].strip())
@@ -135,10 +141,10 @@ def extract_rating_from_content(content: str) -> str | None:
     return raw if len(raw) > 0 and len(raw) < 200 else None
 
 
-def fetch_feed() -> list[dict] | None:
-    """Récupère et parse le flux Atom, retourne une liste d'entrées brutes."""
+def _fetch_single_feed(feed_url: str) -> list[dict]:
+    """Récupère et parse un flux Atom LootScraper."""
     try:
-        r = requests.get(FEED_URL, timeout=15)
+        r = requests.get(feed_url, timeout=15)
         r.raise_for_status()
         root = ET.fromstring(r.content)
         entries = []
@@ -168,7 +174,15 @@ def fetch_feed() -> list[dict] | None:
                 })
         return entries
     except Exception:
-        return None
+        return []
+
+
+def fetch_feed() -> list[dict] | None:
+    """Récupère les flux LootScraper général et Steam."""
+    entries = []
+    for feed_url in FEED_URLS:
+        entries.extend(_fetch_single_feed(feed_url))
+    return entries or None
 
 
 def get_display_entries() -> list[dict]:

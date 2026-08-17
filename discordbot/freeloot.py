@@ -1,4 +1,4 @@
-# FreeLoot Discord : notifications depuis le feed LootScraper (jeux gratuits Epic, Amazon Prime, GOG, etc.)
+# FreeLoot Discord : notifications depuis les flux LootScraper (Epic, Amazon Prime, GOG, Steam, etc.)
 import asyncio
 import logging
 
@@ -56,6 +56,7 @@ def _store_label_for_title(source_key: str) -> str:
         "gog": "GOG",
         "google_play": "Google Play",
         "apple_app_store": "l'App Store",
+        "steam": "Steam",
     }
     return labels.get(source_key, "la boutique")
 
@@ -69,6 +70,7 @@ SOURCE_LOGO_URLS = {
     "gog": "https://www.gog.com/favicon.ico",
     "google_play": "https://play.google.com/favicon.ico",
     "apple_app_store": "https://www.apple.com/favicon.ico",
+    "steam": "https://store.steampowered.com/favicon.ico",
 }
 
 
